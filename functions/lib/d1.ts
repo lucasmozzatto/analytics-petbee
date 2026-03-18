@@ -1,0 +1,710 @@
+import type { SessionRow, ConversionRow, PageRow } from './ga4-api';
+
+// ── Sync Helpers ──
+
+/**
+ * Upserts session rows into ga4_sessions.
+ * Batches in chunks of 100 for D1 limits.
+ * Returns total number of rows synced.
+ */
+export async function syncSessions(db: D1Database, rows: SessionRow[]): Promise<number> {
+  if (rows.length === 0) return 0;
+
+  const sql = `
+    INSERT INTO ga4_sessions (
+      date_ref, channel_group, source, medium, campaign, content, term,
+      sessions, users, new_users, bounce_rate, avg_session_duration,
+      screen_page_views, engaged_sessions
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (date_ref, channel_group, source, medium, campaign, content, term)
+    DO UPDATE SET
+      sessions = excluded.sessions,
+      users = excluded.users,
+      new_users = excluded.new_users,
+      bounce_rate = excluded.bounce_rate,
+      avg_session_duration = excluded.avg_session_duration,
+      screen_page_views = excluded.screen_page_views,
+      engaged_sessions = excluded.engaged_sessions
+  `;
+
+  const chunks = chunkArray(rows, 100);
+  for (const chunk of chunks) {
+    const stmts = chunk.map((r) =>
+      db.prepare(sql).bind(
+        r.date,
+        r.channelGroup,
+        r.source,
+        r.medium,
+        r.campaign,
+        r.content,
+        r.term,
+        r.sessions,
+        r.users,
+        r.newUsers,
+        r.bounceRate,
+        r.avgSessionDuration,
+        r.screenPageViews,
+        r.engagedSessions
+      )
+    );
+    await db.batch(stmts);
+  }
+
+  return rows.length;
+}
+
+/**
+ * Upserts conversion rows into ga4_conversions.
+ * Batches in chunks of 100.
+ */
+export async function syncConversions(db: D1Database, rows: ConversionRow[]): Promise<number> {
+  if (rows.length === 0) return 0;
+
+  const sql = `
+    INSERT INTO ga4_conversions (
+      date_ref, event_name, source, medium, campaign, content, term,
+      event_count
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (date_ref, event_name, source, medium, campaign, content, term)
+    DO UPDATE SET
+      event_count = excluded.event_count
+  `;
+
+  const chunks = chunkArray(rows, 100);
+  for (const chunk of chunks) {
+    const stmts = chunk.map((r) =>
+      db.prepare(sql).bind(
+        r.date,
+        r.eventName,
+        r.source,
+        r.medium,
+        r.campaign,
+        r.content,
+        r.term,
+        r.eventCount
+      )
+    );
+    await db.batch(stmts);
+  }
+
+  return rows.length;
+}
+
+/**
+ * Upserts page rows into ga4_pages.
+ * Batches in chunks of 100.
+ */
+export async function syncPages(db: D1Database, rows: PageRow[]): Promise<number> {
+  if (rows.length === 0) return 0;
+
+  const sql = `
+    INSERT INTO ga4_pages (
+      date_ref, page_path, page_title,
+      screen_page_views, avg_time_on_page, bounce_rate
+    ) VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT (date_ref, page_path)
+    DO UPDATE SET
+      page_title = excluded.page_title,
+      screen_page_views = excluded.screen_page_views,
+      avg_time_on_page = excluded.avg_time_on_page,
+      bounce_rate = excluded.bounce_rate
+  `;
+
+  const chunks = chunkArray(rows, 100);
+  for (const chunk of chunks) {
+    const stmts = chunk.map((r) =>
+      db.prepare(sql).bind(
+        r.date,
+        r.pagePath,
+        r.pageTitle,
+        r.screenPageViews,
+        r.avgTimeOnPage,
+        r.bounceRate
+      )
+    );
+    await db.batch(stmts);
+  }
+
+  return rows.length;
+}
+
+// ── Query Helpers for API Endpoints ──
+
+export interface KPIs {
+  sessions: number;
+  users: number;
+  newUsers: number;
+  bounceRate: number;
+  avgSessionDuration: number;
+  pageViews: number;
+  leads: number;
+  contracts: number;
+  convRateLead: number;
+  convRateContract: number;
+}
+
+/**
+ * Returns aggregated KPIs for the given date range.
+ * Bounce rate and avg session duration are weighted averages by session count.
+ * Leads = generate_lead events, Contracts = purchase events.
+ */
+export async function queryKPIs(
+  db: D1Database,
+  startDate: string,
+  endDate: string
+): Promise<KPIs> {
+  const sessionQuery = db
+    .prepare(
+      `SELECT
+        COALESCE(SUM(sessions), 0) AS sessions,
+        COALESCE(SUM(users), 0) AS users,
+        COALESCE(SUM(new_users), 0) AS new_users,
+        CASE WHEN SUM(sessions) > 0
+          THEN SUM(bounce_rate * sessions) / SUM(sessions)
+          ELSE 0
+        END AS bounce_rate,
+        CASE WHEN SUM(sessions) > 0
+          THEN SUM(avg_session_duration * sessions) / SUM(sessions)
+          ELSE 0
+        END AS avg_session_duration,
+        COALESCE(SUM(screen_page_views), 0) AS page_views
+      FROM ga4_sessions
+      WHERE date_ref >= ? AND date_ref <= ?`
+    )
+    .bind(startDate, endDate);
+
+  const leadsQuery = db
+    .prepare(
+      `SELECT COALESCE(SUM(event_count), 0) AS total
+      FROM ga4_conversions
+      WHERE date_ref >= ? AND date_ref <= ? AND event_name = 'generate_lead'`
+    )
+    .bind(startDate, endDate);
+
+  const contractsQuery = db
+    .prepare(
+      `SELECT COALESCE(SUM(event_count), 0) AS total
+      FROM ga4_conversions
+      WHERE date_ref >= ? AND date_ref <= ? AND event_name = 'purchase'`
+    )
+    .bind(startDate, endDate);
+
+  const [sessionResult, leadsResult, contractsResult] = await db.batch([
+    sessionQuery,
+    leadsQuery,
+    contractsQuery,
+  ]);
+
+  const s = sessionResult.results[0] as Record<string, number>;
+  const leads = (leadsResult.results[0] as Record<string, number>)?.total ?? 0;
+  const contracts = (contractsResult.results[0] as Record<string, number>)?.total ?? 0;
+
+  const sessions = s?.sessions ?? 0;
+
+  return {
+    sessions,
+    users: s?.users ?? 0,
+    newUsers: s?.new_users ?? 0,
+    bounceRate: s?.bounce_rate ?? 0,
+    avgSessionDuration: s?.avg_session_duration ?? 0,
+    pageViews: s?.page_views ?? 0,
+    leads,
+    contracts,
+    convRateLead: sessions > 0 ? (leads / sessions) * 100 : 0,
+    convRateContract: sessions > 0 ? (contracts / sessions) * 100 : 0,
+  };
+}
+
+export interface TimeseriesPoint {
+  date: string;
+  sessions: number;
+  users: number;
+}
+
+/**
+ * Returns daily sessions and users for the given date range.
+ */
+export async function queryTimeseries(
+  db: D1Database,
+  startDate: string,
+  endDate: string
+): Promise<TimeseriesPoint[]> {
+  const result = await db
+    .prepare(
+      `SELECT
+        date_ref AS date,
+        SUM(sessions) AS sessions,
+        SUM(users) AS users
+      FROM ga4_sessions
+      WHERE date_ref >= ? AND date_ref <= ?
+      GROUP BY date_ref
+      ORDER BY date_ref ASC`
+    )
+    .bind(startDate, endDate)
+    .all();
+
+  return (result.results as Record<string, unknown>[]).map((row) => ({
+    date: row.date as string,
+    sessions: (row.sessions as number) ?? 0,
+    users: (row.users as number) ?? 0,
+  }));
+}
+
+export interface ChannelRow {
+  channel: string;
+  sessions: number;
+  users: number;
+  bounceRate: number;
+  avgSessionDuration: number;
+  leads: number;
+  contracts: number;
+  convRateLead: number;
+  convRateContract: number;
+}
+
+/**
+ * Returns sessions grouped by channel group with conversion counts joined.
+ */
+export async function queryByChannel(
+  db: D1Database,
+  startDate: string,
+  endDate: string
+): Promise<ChannelRow[]> {
+  const result = await db
+    .prepare(
+      `SELECT
+        s.channel_group AS channel,
+        SUM(s.sessions) AS sessions,
+        SUM(s.users) AS users,
+        CASE WHEN SUM(s.sessions) > 0
+          THEN SUM(s.bounce_rate * s.sessions) / SUM(s.sessions)
+          ELSE 0
+        END AS bounce_rate,
+        CASE WHEN SUM(s.sessions) > 0
+          THEN SUM(s.avg_session_duration * s.sessions) / SUM(s.sessions)
+          ELSE 0
+        END AS avg_session_duration,
+        COALESCE(leads.total, 0) AS leads,
+        COALESCE(contracts.total, 0) AS contracts
+      FROM ga4_sessions s
+      LEFT JOIN (
+        SELECT source, medium, campaign, content, term,
+          SUM(event_count) AS total
+        FROM ga4_conversions
+        WHERE date_ref >= ? AND date_ref <= ? AND event_name = 'generate_lead'
+        GROUP BY source, medium, campaign, content, term
+      ) leads ON s.source = leads.source AND s.medium = leads.medium
+        AND s.campaign = leads.campaign AND s.content = leads.content
+        AND s.term = leads.term
+      LEFT JOIN (
+        SELECT source, medium, campaign, content, term,
+          SUM(event_count) AS total
+        FROM ga4_conversions
+        WHERE date_ref >= ? AND date_ref <= ? AND event_name = 'purchase'
+        GROUP BY source, medium, campaign, content, term
+      ) contracts ON s.source = contracts.source AND s.medium = contracts.medium
+        AND s.campaign = contracts.campaign AND s.content = contracts.content
+        AND s.term = contracts.term
+      WHERE s.date_ref >= ? AND s.date_ref <= ?
+      GROUP BY s.channel_group
+      ORDER BY sessions DESC`
+    )
+    .bind(startDate, endDate, startDate, endDate, startDate, endDate)
+    .all();
+
+  return (result.results as Record<string, unknown>[]).map((row) => {
+    const sessions = (row.sessions as number) ?? 0;
+    const leads = (row.leads as number) ?? 0;
+    const contracts = (row.contracts as number) ?? 0;
+    return {
+      channel: row.channel as string,
+      sessions,
+      users: (row.users as number) ?? 0,
+      bounceRate: (row.bounce_rate as number) ?? 0,
+      avgSessionDuration: (row.avg_session_duration as number) ?? 0,
+      leads,
+      contracts,
+      convRateLead: sessions > 0 ? (leads / sessions) * 100 : 0,
+      convRateContract: sessions > 0 ? (contracts / sessions) * 100 : 0,
+    };
+  });
+}
+
+export interface SourceMediumRow {
+  source: string;
+  medium: string;
+  sessions: number;
+  users: number;
+  leads: number;
+  contracts: number;
+  convRateLead: number;
+  convRateContract: number;
+}
+
+/**
+ * Returns sessions grouped by source+medium with conversion counts.
+ */
+export async function queryBySourceMedium(
+  db: D1Database,
+  startDate: string,
+  endDate: string
+): Promise<SourceMediumRow[]> {
+  const result = await db
+    .prepare(
+      `SELECT
+        s.source,
+        s.medium,
+        SUM(s.sessions) AS sessions,
+        SUM(s.users) AS users,
+        COALESCE(SUM(leads.total), 0) AS leads,
+        COALESCE(SUM(contracts.total), 0) AS contracts
+      FROM ga4_sessions s
+      LEFT JOIN (
+        SELECT source, medium, campaign, content, term,
+          SUM(event_count) AS total
+        FROM ga4_conversions
+        WHERE date_ref >= ? AND date_ref <= ? AND event_name = 'generate_lead'
+        GROUP BY source, medium, campaign, content, term
+      ) leads ON s.source = leads.source AND s.medium = leads.medium
+        AND s.campaign = leads.campaign AND s.content = leads.content
+        AND s.term = leads.term
+      LEFT JOIN (
+        SELECT source, medium, campaign, content, term,
+          SUM(event_count) AS total
+        FROM ga4_conversions
+        WHERE date_ref >= ? AND date_ref <= ? AND event_name = 'purchase'
+        GROUP BY source, medium, campaign, content, term
+      ) contracts ON s.source = contracts.source AND s.medium = contracts.medium
+        AND s.campaign = contracts.campaign AND s.content = contracts.content
+        AND s.term = contracts.term
+      WHERE s.date_ref >= ? AND s.date_ref <= ?
+      GROUP BY s.source, s.medium
+      ORDER BY sessions DESC`
+    )
+    .bind(startDate, endDate, startDate, endDate, startDate, endDate)
+    .all();
+
+  return (result.results as Record<string, unknown>[]).map((row) => {
+    const sessions = (row.sessions as number) ?? 0;
+    const leads = (row.leads as number) ?? 0;
+    const contracts = (row.contracts as number) ?? 0;
+    return {
+      source: row.source as string,
+      medium: row.medium as string,
+      sessions,
+      users: (row.users as number) ?? 0,
+      leads,
+      contracts,
+      convRateLead: sessions > 0 ? (leads / sessions) * 100 : 0,
+      convRateContract: sessions > 0 ? (contracts / sessions) * 100 : 0,
+    };
+  });
+}
+
+export interface UTMDimensionRow {
+  value: string;
+  sessions: number;
+  leads: number;
+  contracts: number;
+  convRateLead: number;
+  convRateContract: number;
+}
+
+type UTMDimension = 'campaign' | 'source' | 'medium' | 'content' | 'term';
+
+/**
+ * Returns sessions grouped by a specific UTM dimension with conversion counts.
+ */
+export async function queryByUTMDimension(
+  db: D1Database,
+  startDate: string,
+  endDate: string,
+  dimension: UTMDimension
+): Promise<UTMDimensionRow[]> {
+  // Map dimension name to column name (same in both tables)
+  const column = dimension;
+
+  const result = await db
+    .prepare(
+      `SELECT
+        s.${column} AS value,
+        SUM(s.sessions) AS sessions,
+        COALESCE(l.leads, 0) AS leads,
+        COALESCE(c.contracts, 0) AS contracts
+      FROM ga4_sessions s
+      LEFT JOIN (
+        SELECT ${column}, SUM(event_count) AS leads
+        FROM ga4_conversions
+        WHERE date_ref >= ? AND date_ref <= ? AND event_name = 'generate_lead'
+        GROUP BY ${column}
+      ) l ON s.${column} = l.${column}
+      LEFT JOIN (
+        SELECT ${column}, SUM(event_count) AS contracts
+        FROM ga4_conversions
+        WHERE date_ref >= ? AND date_ref <= ? AND event_name = 'purchase'
+        GROUP BY ${column}
+      ) c ON s.${column} = c.${column}
+      WHERE s.date_ref >= ? AND s.date_ref <= ?
+      GROUP BY s.${column}
+      ORDER BY sessions DESC`
+    )
+    .bind(startDate, endDate, startDate, endDate, startDate, endDate)
+    .all();
+
+  return (result.results as Record<string, unknown>[]).map((row) => {
+    const sessions = (row.sessions as number) ?? 0;
+    const leads = (row.leads as number) ?? 0;
+    const contracts = (row.contracts as number) ?? 0;
+    return {
+      value: row.value as string,
+      sessions,
+      leads,
+      contracts,
+      convRateLead: sessions > 0 ? (leads / sessions) * 100 : 0,
+      convRateContract: sessions > 0 ? (contracts / sessions) * 100 : 0,
+    };
+  });
+}
+
+export interface FunnelStep {
+  name: string;
+  event: string;
+  count: number;
+  rate: number;
+}
+
+export interface StepConversion {
+  from: string;
+  to: string;
+  rate: number;
+}
+
+export interface FunnelData {
+  steps: FunnelStep[];
+  stepConversions: StepConversion[];
+}
+
+/**
+ * Returns funnel data: total sessions + event counts for each funnel step.
+ * Rate is calculated vs total sessions.
+ * stepConversions shows conversion rate between consecutive steps.
+ */
+export async function queryFunnel(
+  db: D1Database,
+  startDate: string,
+  endDate: string
+): Promise<FunnelData> {
+  const sessionsQuery = db
+    .prepare(
+      `SELECT COALESCE(SUM(sessions), 0) AS total
+      FROM ga4_sessions
+      WHERE date_ref >= ? AND date_ref <= ?`
+    )
+    .bind(startDate, endDate);
+
+  const eventsQuery = db
+    .prepare(
+      `SELECT event_name, SUM(event_count) AS total
+      FROM ga4_conversions
+      WHERE date_ref >= ? AND date_ref <= ?
+        AND event_name IN ('generate_lead', 'add_to_cart', 'begin_checkout', 'add_payment_info', 'purchase')
+      GROUP BY event_name`
+    )
+    .bind(startDate, endDate);
+
+  const [sessionsResult, eventsResult] = await db.batch([sessionsQuery, eventsQuery]);
+
+  const totalSessions =
+    ((sessionsResult.results[0] as Record<string, number>)?.total as number) ?? 0;
+
+  // Build event counts map
+  const eventCounts: Record<string, number> = {};
+  for (const row of eventsResult.results as Record<string, unknown>[]) {
+    eventCounts[row.event_name as string] = (row.total as number) ?? 0;
+  }
+
+  // Define funnel steps in order
+  const stepDefs = [
+    { name: 'Visitantes', event: 'session' },
+    { name: 'Leads', event: 'generate_lead' },
+    { name: 'Carrinho', event: 'add_to_cart' },
+    { name: 'Checkout', event: 'begin_checkout' },
+    { name: 'Pagamento', event: 'add_payment_info' },
+    { name: 'Contrato', event: 'purchase' },
+  ];
+
+  const steps: FunnelStep[] = stepDefs.map((def) => {
+    const count = def.event === 'session' ? totalSessions : (eventCounts[def.event] ?? 0);
+    return {
+      name: def.name,
+      event: def.event,
+      count,
+      rate: totalSessions > 0 ? (count / totalSessions) * 100 : 0,
+    };
+  });
+
+  // Calculate step-to-step conversions
+  const stepConversions: StepConversion[] = [];
+  for (let i = 0; i < steps.length - 1; i++) {
+    const from = steps[i];
+    const to = steps[i + 1];
+    stepConversions.push({
+      from: from.name,
+      to: to.name,
+      rate: from.count > 0 ? (to.count / from.count) * 100 : 0,
+    });
+  }
+
+  return { steps, stepConversions };
+}
+
+export interface PageDataRow {
+  pagePath: string;
+  pageTitle: string;
+  views: number;
+  avgTimeOnPage: number;
+  bounceRate: number;
+}
+
+export interface PaginatedPages {
+  data: PageDataRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/**
+ * Returns paginated pages ordered by views DESC.
+ * Aggregates across dates for the given range.
+ */
+export async function queryPages(
+  db: D1Database,
+  startDate: string,
+  endDate: string,
+  page = 1,
+  pageSize = 20
+): Promise<PaginatedPages> {
+  const offset = (page - 1) * pageSize;
+
+  const countResult = await db
+    .prepare(
+      `SELECT COUNT(DISTINCT page_path) AS total
+      FROM ga4_pages
+      WHERE date_ref >= ? AND date_ref <= ?`
+    )
+    .bind(startDate, endDate)
+    .first<{ total: number }>();
+
+  const total = countResult?.total ?? 0;
+
+  const result = await db
+    .prepare(
+      `SELECT
+        page_path AS pagePath,
+        page_title AS pageTitle,
+        SUM(screen_page_views) AS views,
+        CASE WHEN SUM(screen_page_views) > 0
+          THEN SUM(avg_time_on_page * screen_page_views) / SUM(screen_page_views)
+          ELSE 0
+        END AS avgTimeOnPage,
+        CASE WHEN SUM(screen_page_views) > 0
+          THEN SUM(bounce_rate * screen_page_views) / SUM(screen_page_views)
+          ELSE 0
+        END AS bounceRate
+      FROM ga4_pages
+      WHERE date_ref >= ? AND date_ref <= ?
+      GROUP BY page_path
+      ORDER BY views DESC
+      LIMIT ? OFFSET ?`
+    )
+    .bind(startDate, endDate, pageSize, offset)
+    .all();
+
+  const data = (result.results as Record<string, unknown>[]).map((row) => ({
+    pagePath: row.pagePath as string,
+    pageTitle: (row.pageTitle as string) ?? '',
+    views: (row.views as number) ?? 0,
+    avgTimeOnPage: (row.avgTimeOnPage as number) ?? 0,
+    bounceRate: (row.bounceRate as number) ?? 0,
+  }));
+
+  return { data, total, page, pageSize };
+}
+
+// ── Insight Helpers ──
+
+export interface InsightSummary {
+  id: number;
+  startDate: string;
+  endDate: string;
+  createdAt: string;
+}
+
+export interface InsightFull extends InsightSummary {
+  analysis: string;
+}
+
+/**
+ * Returns list of insights without the analysis text, ordered by newest first.
+ */
+export async function queryInsightHistory(db: D1Database): Promise<InsightSummary[]> {
+  const result = await db
+    .prepare(
+      `SELECT id, start_date AS startDate, end_date AS endDate, created_at AS createdAt
+      FROM ai_insights
+      ORDER BY created_at DESC`
+    )
+    .all();
+
+  return result.results as unknown as InsightSummary[];
+}
+
+/**
+ * Returns a single insight with full analysis text, or null if not found.
+ */
+export async function queryInsight(db: D1Database, id: number): Promise<InsightFull | null> {
+  const result = await db
+    .prepare(
+      `SELECT id, start_date AS startDate, end_date AS endDate, analysis, created_at AS createdAt
+      FROM ai_insights
+      WHERE id = ?`
+    )
+    .bind(id)
+    .first<InsightFull>();
+
+  return result ?? null;
+}
+
+/**
+ * Saves a new insight and returns its ID.
+ */
+export async function saveInsight(
+  db: D1Database,
+  startDate: string,
+  endDate: string,
+  analysis: string
+): Promise<number> {
+  const result = await db
+    .prepare(
+      `INSERT INTO ai_insights (start_date, end_date, analysis, created_at)
+      VALUES (?, ?, ?, datetime('now'))
+      RETURNING id`
+    )
+    .bind(startDate, endDate, analysis)
+    .first<{ id: number }>();
+
+  return result!.id;
+}
+
+// ── Internal Helpers ──
+
+/**
+ * Splits an array into chunks of the given size.
+ */
+function chunkArray<T>(array: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < array.length; i += size) {
+    chunks.push(array.slice(i, i + size));
+  }
+  return chunks;
+}

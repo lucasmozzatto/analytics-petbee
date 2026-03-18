@@ -1,0 +1,396 @@
+@import "tailwindcss";
+
+/* ===== Design System: GA4 Dashboard ===== */
+
+:root {
+  /* Backgrounds */
+  --bg: #0a0a0c;
+  --surface: #121216;
+  --surface-alt: #18181e;
+
+  /* Borders */
+  --border: #1f1f28;
+  --border-light: #2a2a36;
+
+  /* Text */
+  --text: #e8e8ed;
+  --text-dim: #7a7a8c;
+  --text-muted: #4a4a58;
+
+  /* Accent colors — GA4 palette (emerald/teal/blue) */
+  --accent: #10b981;
+  --accent-dim: rgba(16, 185, 129, 0.12);
+  --teal: #14b8a6;
+  --teal-dim: rgba(20, 184, 166, 0.12);
+  --blue: #3b82f6;
+  --blue-dim: rgba(59, 130, 246, 0.12);
+  --amber: #f59e0b;
+  --amber-dim: rgba(245, 158, 11, 0.12);
+  --red: #ef4444;
+  --red-dim: rgba(239, 68, 68, 0.12);
+  --purple: #a855f7;
+  --purple-dim: rgba(168, 85, 247, 0.12);
+  --orange: #f97316;
+  --orange-dim: rgba(249, 115, 22, 0.12);
+
+  /* Layout */
+  --sidebar-w: 220px;
+
+  /* Font tokens */
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ===== Base ===== */
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ===== Noise Texture Overlay ===== */
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* ===== Fade-up Animation ===== */
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-up {
+  animation: fadeUp 0.4s ease-out both;
+}
+
+/* Staggered delay utilities for lists/grids */
+.fade-up:nth-child(1) { animation-delay: 0s; }
+.fade-up:nth-child(2) { animation-delay: 0.04s; }
+.fade-up:nth-child(3) { animation-delay: 0.08s; }
+.fade-up:nth-child(4) { animation-delay: 0.12s; }
+.fade-up:nth-child(5) { animation-delay: 0.16s; }
+.fade-up:nth-child(6) { animation-delay: 0.2s; }
+.fade-up:nth-child(7) { animation-delay: 0.24s; }
+.fade-up:nth-child(8) { animation-delay: 0.28s; }
+.fade-up:nth-child(9) { animation-delay: 0.32s; }
+.fade-up:nth-child(10) { animation-delay: 0.36s; }
+.fade-up:nth-child(11) { animation-delay: 0.4s; }
+.fade-up:nth-child(12) { animation-delay: 0.44s; }
+
+/* ===== Font Utilities ===== */
+
+.font-mono {
+  font-family: var(--mono);
+}
+
+.font-sans {
+  font-family: var(--sans);
+}
+
+/* ===== Scrollbar Styling ===== */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-light) var(--bg);
+}
+
+/* ===== Design System Utility Classes ===== */
+
+/* Surface cards */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.card-alt {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+/* Text color utilities */
+.text-primary {
+  color: var(--text);
+}
+
+.text-dim {
+  color: var(--text-dim);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+/* Accent color utilities */
+.text-accent {
+  color: var(--accent);
+}
+
+.text-teal {
+  color: var(--teal);
+}
+
+.text-blue {
+  color: var(--blue);
+}
+
+.text-amber {
+  color: var(--amber);
+}
+
+.text-red {
+  color: var(--red);
+}
+
+.text-purple {
+  color: var(--purple);
+}
+
+.text-orange {
+  color: var(--orange);
+}
+
+/* Background accent utilities */
+.bg-accent-dim {
+  background: var(--accent-dim);
+}
+
+.bg-teal-dim {
+  background: var(--teal-dim);
+}
+
+.bg-blue-dim {
+  background: var(--blue-dim);
+}
+
+.bg-amber-dim {
+  background: var(--amber-dim);
+}
+
+.bg-red-dim {
+  background: var(--red-dim);
+}
+
+.bg-purple-dim {
+  background: var(--purple-dim);
+}
+
+.bg-orange-dim {
+  background: var(--orange-dim);
+}
+
+/* Table base styling */
+.table-container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.table-container table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table-container thead th {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.table-container thead th.text-right {
+  text-align: right;
+}
+
+.table-container tbody td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.table-container tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table-container tbody tr:hover {
+  background: var(--surface-alt);
+}
+
+.table-container tbody td.mono {
+  font-family: var(--mono);
+  text-align: right;
+}
+
+/* Truncated text with tooltip */
+.truncate-with-tooltip {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Filter button */
+.filter-btn {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.filter-btn:hover {
+  color: var(--text-dim);
+}
+
+.filter-btn.active {
+  background: var(--surface-alt);
+  border-color: var(--border-light);
+  color: var(--text);
+}
+
+/* KPI label */
+.kpi-label {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+/* KPI value */
+.kpi-value {
+  font-family: var(--mono);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+/* Bounce rate cell coloring */
+.bounce-low {
+  color: var(--accent);
+}
+
+.bounce-mid {
+  color: var(--amber);
+}
+
+.bounce-high {
+  color: var(--red);
+}
+
+/* Row highlights for UTM analysis */
+.row-best {
+  background: rgba(16, 185, 129, 0.06);
+}
+
+.row-worst {
+  background: rgba(239, 68, 68, 0.06);
+}
+
+/* Loading spinner */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-light);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+/* Page layout */
+.page-container {
+  padding: 32px;
+  max-width: 1280px;
+}
+
+.page-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+
+.page-subtitle {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 4px 0 0 0;
+}
+
+/* Badge */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+/* Section separator */
+.section-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 24px 0;
+}
