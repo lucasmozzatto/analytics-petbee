@@ -1,4 +1,4 @@
-name = "ga4-dash"
+name = "analytics-petbee"
 main = "worker.ts"
 compatibility_date = "2026-03-17"
 
@@ -9,5 +9,5 @@ run_worker_first = ["/api/*"]
 
 [[d1_databases]]
 binding = "DB"
-database_name = "ga4-dash-db"
-database_id = "SEU_DATABASE_ID_AQUI"
+database_name = "analytics-db"
+database_id = "b7dc0cf8-5096-49f4-927d-a14fb4f0d9ad"
