@@ -371,25 +371,25 @@ export async function queryByChannel(
           THEN SUM(s.avg_session_duration * s.sessions) / SUM(s.sessions)
           ELSE 0
         END AS avg_session_duration,
-        COALESCE(leads.total, 0) AS leads,
-        COALESCE(contracts.total, 0) AS contracts
+        COALESCE(SUM(leads.total), 0) AS leads,
+        COALESCE(SUM(contracts.total), 0) AS contracts
       FROM ga4_sessions s
       LEFT JOIN (
-        SELECT source, medium, campaign, content, term,
-          CASE WHEN SUM(sessions_with_event) > 0 THEN SUM(sessions_with_event) ELSE SUM(event_count) END AS total
+        SELECT date_ref, source, medium, campaign, content, term,
+          CASE WHEN sessions_with_event > 0 THEN sessions_with_event ELSE event_count END AS total
         FROM ga4_conversions
         WHERE date_ref >= ? AND date_ref <= ? AND event_name = 'generate_lead'
-        GROUP BY source, medium, campaign, content, term
-      ) leads ON s.source = leads.source AND s.medium = leads.medium
+      ) leads ON s.date_ref = leads.date_ref
+        AND s.source = leads.source AND s.medium = leads.medium
         AND s.campaign = leads.campaign AND s.content = leads.content
         AND s.term = leads.term
       LEFT JOIN (
-        SELECT source, medium, campaign, content, term,
-          CASE WHEN SUM(sessions_with_event) > 0 THEN SUM(sessions_with_event) ELSE SUM(event_count) END AS total
+        SELECT date_ref, source, medium, campaign, content, term,
+          CASE WHEN sessions_with_event > 0 THEN sessions_with_event ELSE event_count END AS total
         FROM ga4_conversions
         WHERE date_ref >= ? AND date_ref <= ? AND event_name = 'purchase'
-        GROUP BY source, medium, campaign, content, term
-      ) contracts ON s.source = contracts.source AND s.medium = contracts.medium
+      ) contracts ON s.date_ref = contracts.date_ref
+        AND s.source = contracts.source AND s.medium = contracts.medium
         AND s.campaign = contracts.campaign AND s.content = contracts.content
         AND s.term = contracts.term
       WHERE s.date_ref >= ? AND s.date_ref <= ?
@@ -447,21 +447,21 @@ export async function queryBySourceMedium(
         COALESCE(SUM(contracts.total), 0) AS contracts
       FROM ga4_sessions s
       LEFT JOIN (
-        SELECT source, medium, campaign, content, term,
-          CASE WHEN SUM(sessions_with_event) > 0 THEN SUM(sessions_with_event) ELSE SUM(event_count) END AS total
+        SELECT date_ref, source, medium, campaign, content, term,
+          CASE WHEN sessions_with_event > 0 THEN sessions_with_event ELSE event_count END AS total
         FROM ga4_conversions
         WHERE date_ref >= ? AND date_ref <= ? AND event_name = 'generate_lead'
-        GROUP BY source, medium, campaign, content, term
-      ) leads ON s.source = leads.source AND s.medium = leads.medium
+      ) leads ON s.date_ref = leads.date_ref
+        AND s.source = leads.source AND s.medium = leads.medium
         AND s.campaign = leads.campaign AND s.content = leads.content
         AND s.term = leads.term
       LEFT JOIN (
-        SELECT source, medium, campaign, content, term,
-          CASE WHEN SUM(sessions_with_event) > 0 THEN SUM(sessions_with_event) ELSE SUM(event_count) END AS total
+        SELECT date_ref, source, medium, campaign, content, term,
+          CASE WHEN sessions_with_event > 0 THEN sessions_with_event ELSE event_count END AS total
         FROM ga4_conversions
         WHERE date_ref >= ? AND date_ref <= ? AND event_name = 'purchase'
-        GROUP BY source, medium, campaign, content, term
-      ) contracts ON s.source = contracts.source AND s.medium = contracts.medium
+      ) contracts ON s.date_ref = contracts.date_ref
+        AND s.source = contracts.source AND s.medium = contracts.medium
         AND s.campaign = contracts.campaign AND s.content = contracts.content
         AND s.term = contracts.term
       WHERE s.date_ref >= ? AND s.date_ref <= ?
@@ -514,28 +514,31 @@ export async function queryByUTMDimension(
   const result = await db
     .prepare(
       `SELECT
-        s.${column} AS value,
-        SUM(s.sessions) AS sessions,
+        s.value,
+        s.sessions,
         COALESCE(l.leads, 0) AS leads,
         COALESCE(c.contracts, 0) AS contracts
-      FROM ga4_sessions s
+      FROM (
+        SELECT ${column} AS value, SUM(sessions) AS sessions
+        FROM ga4_sessions
+        WHERE date_ref >= ? AND date_ref <= ?
+        GROUP BY ${column}
+      ) s
       LEFT JOIN (
-        SELECT ${column},
+        SELECT ${column} AS value,
           CASE WHEN SUM(sessions_with_event) > 0 THEN SUM(sessions_with_event) ELSE SUM(event_count) END AS leads
         FROM ga4_conversions
         WHERE date_ref >= ? AND date_ref <= ? AND event_name = 'generate_lead'
         GROUP BY ${column}
-      ) l ON s.${column} = l.${column}
+      ) l ON s.value = l.value
       LEFT JOIN (
-        SELECT ${column},
+        SELECT ${column} AS value,
           CASE WHEN SUM(sessions_with_event) > 0 THEN SUM(sessions_with_event) ELSE SUM(event_count) END AS contracts
         FROM ga4_conversions
         WHERE date_ref >= ? AND date_ref <= ? AND event_name = 'purchase'
         GROUP BY ${column}
-      ) c ON s.${column} = c.${column}
-      WHERE s.date_ref >= ? AND s.date_ref <= ?
-      GROUP BY s.${column}
-      ORDER BY sessions DESC`
+      ) c ON s.value = c.value
+      ORDER BY s.sessions DESC`
     )
     .bind(startDate, endDate, startDate, endDate, startDate, endDate)
     .all();
