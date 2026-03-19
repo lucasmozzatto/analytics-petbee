@@ -205,6 +205,7 @@ export interface ConversionRow {
   campaign: string;
   content: string;
   term: string;
+  keyEvents: number;
   eventCount: number;
   eventValue: number;
 }
@@ -238,6 +239,7 @@ export async function fetchConversions(
       { name: 'sessionManualTerm' },
     ],
     metrics: [
+      { name: 'keyEvents' },
       { name: 'eventCount' },
       { name: 'eventValue' },
     ],
@@ -261,8 +263,9 @@ export async function fetchConversions(
     campaign: row.dimensionValues[4].value || '',
     content: row.dimensionValues[5].value || '',
     term: row.dimensionValues[6].value || '',
-    eventCount: parseInt(row.metricValues[0].value, 10) || 0,
-    eventValue: parseFloat(row.metricValues[1].value) || 0,
+    keyEvents: parseInt(row.metricValues[0].value, 10) || 0,
+    eventCount: parseInt(row.metricValues[1].value, 10) || 0,
+    eventValue: parseFloat(row.metricValues[2].value) || 0,
   }));
 }
 
