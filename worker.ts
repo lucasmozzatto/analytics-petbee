@@ -1,12 +1,13 @@
 import type { Env } from './functions/lib/types';
 import { getAccessToken } from './functions/lib/google-auth';
-import { fetchSessions, fetchConversions, fetchPages, fetchPageConversions } from './functions/lib/ga4-api';
+import { fetchSessions, fetchConversions, fetchPages, fetchPageConversions, fetchDailyTotals } from './functions/lib/ga4-api';
 import { todaySP, yesterdaySP, getPreviousPeriod } from './functions/lib/date-utils';
 import {
   syncSessions,
   syncConversions,
   syncPages,
   syncPageConversions,
+  syncDailyTotals,
   queryKPIs,
   queryTimeseries,
   queryByChannel,
@@ -298,7 +299,7 @@ export default {
           `| Sessões | ${kpis.sessions.toLocaleString('pt-BR')} |`,
           `| Usuários | ${kpis.users.toLocaleString('pt-BR')} |`,
           `| Novos Usuários | ${kpis.newUsers.toLocaleString('pt-BR')} |`,
-          `| Bounce Rate | ${formatPercent(kpis.bounceRate * 100)} |`,
+          `| Bounce Rate | ${formatPercent(kpis.bounceRate)} |`,
           `| Duração Média | ${formatDuration(kpis.avgSessionDuration)} |`,
           `| Páginas/Sessão | ${kpis.sessions > 0 ? (kpis.pageViews / kpis.sessions).toFixed(2) : '0'} |`,
           `| Leads | ${kpis.leads.toLocaleString('pt-BR')} |`,
@@ -313,7 +314,7 @@ export default {
           '|-------|---------|----------|-------------|---------|-------|-----------|',
           ...byChannel.map(
             (ch) =>
-              `| ${ch.channel} | ${ch.sessions} | ${ch.users} | ${formatPercent(ch.bounceRate * 100)} | ${formatDuration(ch.avgSessionDuration)} | ${ch.leads} | ${ch.contracts} |`
+              `| ${ch.channel} | ${ch.sessions} | ${ch.users} | ${formatPercent(ch.bounceRate)} | ${formatDuration(ch.avgSessionDuration)} | ${ch.leads} | ${ch.contracts} |`
           ),
         ].join('\n');
 
@@ -349,7 +350,7 @@ export default {
           '|--------|-------|-------------|-------------|',
           ...pagesResult.data.slice(0, 20).map(
             (p) =>
-              `| ${p.pagePath} | ${p.views} | ${formatDuration(p.avgTimeOnPage)} | ${formatPercent(p.bounceRate * 100)} |`
+              `| ${p.pagePath} | ${p.views} | ${formatDuration(p.avgTimeOnPage)} | ${formatPercent(p.bounceRate)} |`
           ),
         ].join('\n');
 
@@ -540,19 +541,21 @@ Variação vs período anterior:
         const accessToken = await getAccessToken(env);
 
         // Fetch all data from GA4 in parallel
-        const [sessions, conversions, pages, pageConversions] = await Promise.all([
+        const [sessions, conversions, pages, pageConversions, dailyTotals] = await Promise.all([
           fetchSessions(env, startDate, endDate),
           fetchConversions(env, startDate, endDate),
           fetchPages(env, startDate, endDate),
           fetchPageConversions(env, startDate, endDate),
+          fetchDailyTotals(env, startDate, endDate),
         ]);
 
         // Sync all to D1
-        const [syncedSessions, syncedConversions, syncedPages, syncedPageConversions] = await Promise.all([
+        const [syncedSessions, syncedConversions, syncedPages, syncedPageConversions, syncedDailyTotals] = await Promise.all([
           syncSessions(env.DB, sessions),
           syncConversions(env.DB, conversions),
           syncPages(env.DB, pages),
           syncPageConversions(env.DB, pageConversions),
+          syncDailyTotals(env.DB, dailyTotals),
         ]);
 
         return jsonResponse({
@@ -562,6 +565,7 @@ Variação vs período anterior:
             conversions: syncedConversions,
             pages: syncedPages,
             pageConversions: syncedPageConversions,
+            dailyTotals: syncedDailyTotals,
           },
           dateRange: { startDate, endDate },
         });

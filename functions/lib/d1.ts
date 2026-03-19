@@ -1,4 +1,4 @@
-import type { SessionRow, ConversionRow, PageRow, PageConversionRow } from './ga4-api';
+import type { SessionRow, ConversionRow, PageRow, PageConversionRow, DailyTotalRow } from './ga4-api';
 
 // ── Sync Helpers ──
 
@@ -130,6 +130,49 @@ export async function syncPages(db: D1Database, rows: PageRow[]): Promise<number
   return rows.length;
 }
 
+/**
+ * Upserts daily totals (aggregated without UTM breakdown) into ga4_daily_totals.
+ * These give true deduplicated user counts.
+ */
+export async function syncDailyTotals(db: D1Database, rows: DailyTotalRow[]): Promise<number> {
+  if (rows.length === 0) return 0;
+
+  const sql = `
+    INSERT INTO ga4_daily_totals (
+      date_ref, sessions, users, new_users, bounce_rate,
+      avg_session_duration, screen_page_views, engaged_sessions
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (date_ref)
+    DO UPDATE SET
+      sessions = excluded.sessions,
+      users = excluded.users,
+      new_users = excluded.new_users,
+      bounce_rate = excluded.bounce_rate,
+      avg_session_duration = excluded.avg_session_duration,
+      screen_page_views = excluded.screen_page_views,
+      engaged_sessions = excluded.engaged_sessions
+  `;
+
+  const chunks = chunkArray(rows, 100);
+  for (const chunk of chunks) {
+    const stmts = chunk.map((r) =>
+      db.prepare(sql).bind(
+        r.date,
+        r.sessions,
+        r.users,
+        r.newUsers,
+        r.bounceRate,
+        r.avgSessionDuration,
+        r.screenPageViews,
+        r.engagedSessions
+      )
+    );
+    await db.batch(stmts);
+  }
+
+  return rows.length;
+}
+
 // ── Query Helpers for API Endpoints ──
 
 export interface KPIs {
@@ -148,7 +191,8 @@ export interface KPIs {
 
 /**
  * Returns aggregated KPIs for the given date range.
- * Bounce rate and avg session duration are weighted averages by session count.
+ * Uses ga4_daily_totals for accurate deduplicated user counts.
+ * Bounce rate returned as 0-100 (percentage).
  * Leads = generate_lead events, Contracts = purchase events.
  */
 export async function queryKPIs(
@@ -156,7 +200,7 @@ export async function queryKPIs(
   startDate: string,
   endDate: string
 ): Promise<KPIs> {
-  const sessionQuery = db
+  const totalsQuery = db
     .prepare(
       `SELECT
         COALESCE(SUM(sessions), 0) AS sessions,
@@ -171,7 +215,7 @@ export async function queryKPIs(
           ELSE 0
         END AS avg_session_duration,
         COALESCE(SUM(screen_page_views), 0) AS page_views
-      FROM ga4_sessions
+      FROM ga4_daily_totals
       WHERE date_ref >= ? AND date_ref <= ?`
     )
     .bind(startDate, endDate);
@@ -192,13 +236,13 @@ export async function queryKPIs(
     )
     .bind(startDate, endDate);
 
-  const [sessionResult, leadsResult, contractsResult] = await db.batch([
-    sessionQuery,
+  const [totalsResult, leadsResult, contractsResult] = await db.batch([
+    totalsQuery,
     leadsQuery,
     contractsQuery,
   ]);
 
-  const s = sessionResult.results[0] as Record<string, number>;
+  const s = totalsResult.results[0] as Record<string, number>;
   const leads = (leadsResult.results[0] as Record<string, number>)?.total ?? 0;
   const contractsRow = contractsResult.results[0] as Record<string, number>;
   const contracts = contractsRow?.total ?? 0;
@@ -210,7 +254,7 @@ export async function queryKPIs(
     sessions,
     users: s?.users ?? 0,
     newUsers: s?.new_users ?? 0,
-    bounceRate: s?.bounce_rate ?? 0,
+    bounceRate: (s?.bounce_rate ?? 0) * 100,
     avgSessionDuration: s?.avg_session_duration ?? 0,
     pageViews: s?.page_views ?? 0,
     leads,
@@ -229,6 +273,7 @@ export interface TimeseriesPoint {
 
 /**
  * Returns daily sessions and users for the given date range.
+ * Uses ga4_daily_totals for accurate deduplicated user counts.
  */
 export async function queryTimeseries(
   db: D1Database,
@@ -239,11 +284,10 @@ export async function queryTimeseries(
     .prepare(
       `SELECT
         date_ref AS date,
-        SUM(sessions) AS sessions,
-        SUM(users) AS users
-      FROM ga4_sessions
+        sessions,
+        users
+      FROM ga4_daily_totals
       WHERE date_ref >= ? AND date_ref <= ?
-      GROUP BY date_ref
       ORDER BY date_ref ASC`
     )
     .bind(startDate, endDate)
@@ -326,7 +370,7 @@ export async function queryByChannel(
       channel: row.channel as string,
       sessions,
       users: (row.users as number) ?? 0,
-      bounceRate: (row.bounce_rate as number) ?? 0,
+      bounceRate: ((row.bounce_rate as number) ?? 0) * 100,
       avgSessionDuration: (row.avg_session_duration as number) ?? 0,
       leads,
       contracts,
@@ -639,7 +683,7 @@ export async function queryPages(
     pageTitle: (row.pageTitle as string) ?? '',
     views: (row.views as number) ?? 0,
     avgTimeOnPage: (row.avgTimeOnPage as number) ?? 0,
-    bounceRate: (row.bounceRate as number) ?? 0,
+    bounceRate: ((row.bounceRate as number) ?? 0) * 100,
   }));
 
   return { data, total, page, pageSize };

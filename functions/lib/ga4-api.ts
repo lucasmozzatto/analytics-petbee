@@ -266,6 +266,58 @@ export async function fetchConversions(
   }));
 }
 
+// ── Daily Totals Fetcher ──
+
+export interface DailyTotalRow {
+  date: string;
+  sessions: number;
+  users: number;
+  newUsers: number;
+  bounceRate: number;
+  avgSessionDuration: number;
+  screenPageViews: number;
+  engagedSessions: number;
+}
+
+/**
+ * Fetches aggregated daily totals WITHOUT UTM breakdown from GA4.
+ * Only `date` as dimension — gives true deduplicated user counts.
+ */
+export async function fetchDailyTotals(
+  env: Env,
+  startDate: string,
+  endDate: string
+): Promise<DailyTotalRow[]> {
+  const response = await runReport(env, {
+    dateRanges: [{ startDate, endDate }],
+    dimensions: [
+      { name: 'date' },
+    ],
+    metrics: [
+      { name: 'sessions' },
+      { name: 'totalUsers' },
+      { name: 'newUsers' },
+      { name: 'bounceRate' },
+      { name: 'averageSessionDuration' },
+      { name: 'screenPageViews' },
+      { name: 'engagedSessions' },
+    ],
+  });
+
+  if (!response.rows) return [];
+
+  return response.rows.map((row) => ({
+    date: formatGA4Date(row.dimensionValues[0].value),
+    sessions: parseInt(row.metricValues[0].value, 10) || 0,
+    users: parseInt(row.metricValues[1].value, 10) || 0,
+    newUsers: parseInt(row.metricValues[2].value, 10) || 0,
+    bounceRate: parseFloat(row.metricValues[3].value) || 0,
+    avgSessionDuration: parseFloat(row.metricValues[4].value) || 0,
+    screenPageViews: parseInt(row.metricValues[5].value, 10) || 0,
+    engagedSessions: parseInt(row.metricValues[6].value, 10) || 0,
+  }));
+}
+
 // ── Page Fetcher ──
 
 export interface PageRow {

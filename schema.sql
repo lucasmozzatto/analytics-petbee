@@ -54,6 +54,18 @@ CREATE TABLE IF NOT EXISTS ga4_page_conversions (
   PRIMARY KEY (date_ref, event_name, page_path)
 );
 
+-- GA4 Daily Totals (agregado sem breakdown UTM — usuários deduplicated)
+CREATE TABLE IF NOT EXISTS ga4_daily_totals (
+  date_ref TEXT PRIMARY KEY,
+  sessions INTEGER NOT NULL DEFAULT 0,
+  users INTEGER NOT NULL DEFAULT 0,
+  new_users INTEGER NOT NULL DEFAULT 0,
+  bounce_rate REAL NOT NULL DEFAULT 0,
+  avg_session_duration REAL NOT NULL DEFAULT 0,
+  screen_page_views INTEGER NOT NULL DEFAULT 0,
+  engaged_sessions INTEGER NOT NULL DEFAULT 0
+);
+
 -- GA4 Account info
 CREATE TABLE IF NOT EXISTS ga4_account (
   property_id TEXT PRIMARY KEY,
