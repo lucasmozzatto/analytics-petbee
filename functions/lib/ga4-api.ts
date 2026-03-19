@@ -266,6 +266,58 @@ export async function fetchConversions(
   }));
 }
 
+// ── Daily Conversions Fetcher (aggregated, no UTM breakdown) ──
+
+export interface DailyConversionRow {
+  date: string;
+  eventName: string;
+  sessionsWithEvent: number;
+  eventCount: number;
+  eventValue: number;
+}
+
+/**
+ * Fetches conversion events aggregated by date+eventName only (no UTM dimensions).
+ * Uses `sessions` metric which, combined with `eventName` dimension, gives
+ * unique sessions where the event occurred — matching GA4 UI "Key events".
+ */
+export async function fetchDailyConversions(
+  env: Env,
+  startDate: string,
+  endDate: string
+): Promise<DailyConversionRow[]> {
+  const response = await runReport(env, {
+    dateRanges: [{ startDate, endDate }],
+    dimensions: [
+      { name: 'date' },
+      { name: 'eventName' },
+    ],
+    metrics: [
+      { name: 'sessions' },
+      { name: 'eventCount' },
+      { name: 'eventValue' },
+    ],
+    dimensionFilter: {
+      filter: {
+        fieldName: 'eventName',
+        inListFilter: {
+          values: CONVERSION_EVENTS,
+        },
+      },
+    },
+  });
+
+  if (!response.rows) return [];
+
+  return response.rows.map((row) => ({
+    date: formatGA4Date(row.dimensionValues[0].value),
+    eventName: row.dimensionValues[1].value || '',
+    sessionsWithEvent: parseInt(row.metricValues[0].value, 10) || 0,
+    eventCount: parseInt(row.metricValues[1].value, 10) || 0,
+    eventValue: parseFloat(row.metricValues[2].value) || 0,
+  }));
+}
+
 // ── Daily Totals Fetcher ──
 
 export interface DailyTotalRow {

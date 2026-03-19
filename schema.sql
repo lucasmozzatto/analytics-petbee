@@ -66,6 +66,16 @@ CREATE TABLE IF NOT EXISTS ga4_daily_totals (
   engaged_sessions INTEGER NOT NULL DEFAULT 0
 );
 
+-- GA4 Daily Conversions (agregado sem UTM — contagem precisa por sessão)
+CREATE TABLE IF NOT EXISTS ga4_daily_conversions (
+  date_ref TEXT NOT NULL,
+  event_name TEXT NOT NULL,
+  sessions_with_event INTEGER NOT NULL DEFAULT 0,
+  event_count INTEGER NOT NULL DEFAULT 0,
+  event_value REAL NOT NULL DEFAULT 0,
+  PRIMARY KEY (date_ref, event_name)
+);
+
 -- GA4 Account info
 CREATE TABLE IF NOT EXISTS ga4_account (
   property_id TEXT PRIMARY KEY,

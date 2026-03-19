@@ -1,4 +1,4 @@
-import type { SessionRow, ConversionRow, PageRow, PageConversionRow, DailyTotalRow } from './ga4-api';
+import type { SessionRow, ConversionRow, PageRow, PageConversionRow, DailyTotalRow, DailyConversionRow } from './ga4-api';
 
 // ── Sync Helpers ──
 
@@ -173,6 +173,41 @@ export async function syncDailyTotals(db: D1Database, rows: DailyTotalRow[]): Pr
   return rows.length;
 }
 
+/**
+ * Upserts daily conversion totals (no UTM breakdown) into ga4_daily_conversions.
+ * Uses sessions_with_event for accurate "Key events" count (1 per session).
+ */
+export async function syncDailyConversions(db: D1Database, rows: DailyConversionRow[]): Promise<number> {
+  if (rows.length === 0) return 0;
+
+  const sql = `
+    INSERT INTO ga4_daily_conversions (
+      date_ref, event_name, sessions_with_event, event_count, event_value
+    ) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT (date_ref, event_name)
+    DO UPDATE SET
+      sessions_with_event = excluded.sessions_with_event,
+      event_count = excluded.event_count,
+      event_value = excluded.event_value
+  `;
+
+  const chunks = chunkArray(rows, 100);
+  for (const chunk of chunks) {
+    const stmts = chunk.map((r) =>
+      db.prepare(sql).bind(
+        r.date,
+        r.eventName,
+        r.sessionsWithEvent,
+        r.eventCount,
+        r.eventValue
+      )
+    );
+    await db.batch(stmts);
+  }
+
+  return rows.length;
+}
+
 // ── Query Helpers for API Endpoints ──
 
 export interface KPIs {
@@ -222,16 +257,16 @@ export async function queryKPIs(
 
   const leadsQuery = db
     .prepare(
-      `SELECT COALESCE(SUM(event_count), 0) AS total
-      FROM ga4_conversions
+      `SELECT COALESCE(SUM(sessions_with_event), 0) AS total
+      FROM ga4_daily_conversions
       WHERE date_ref >= ? AND date_ref <= ? AND event_name = 'generate_lead'`
     )
     .bind(startDate, endDate);
 
   const contractsQuery = db
     .prepare(
-      `SELECT COALESCE(SUM(event_count), 0) AS total, COALESCE(SUM(event_value), 0) AS revenue
-      FROM ga4_conversions
+      `SELECT COALESCE(SUM(sessions_with_event), 0) AS total, COALESCE(SUM(event_value), 0) AS revenue
+      FROM ga4_daily_conversions
       WHERE date_ref >= ? AND date_ref <= ? AND event_name = 'purchase'`
     )
     .bind(startDate, endDate);
@@ -547,15 +582,15 @@ export async function queryFunnel(
   const sessionsQuery = db
     .prepare(
       `SELECT COALESCE(SUM(sessions), 0) AS total
-      FROM ga4_sessions
+      FROM ga4_daily_totals
       WHERE date_ref >= ? AND date_ref <= ?`
     )
     .bind(startDate, endDate);
 
   const eventsQuery = db
     .prepare(
-      `SELECT event_name, SUM(event_count) AS total
-      FROM ga4_conversions
+      `SELECT event_name, SUM(sessions_with_event) AS total
+      FROM ga4_daily_conversions
       WHERE date_ref >= ? AND date_ref <= ?
         AND event_name IN ('generate_lead', 'click_whatsapp', 'add_to_cart', 'begin_checkout', 'add_payment_info', 'purchase')
       GROUP BY event_name`

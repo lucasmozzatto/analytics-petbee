@@ -1,6 +1,6 @@
 import type { Env } from './functions/lib/types';
 import { getAccessToken } from './functions/lib/google-auth';
-import { fetchSessions, fetchConversions, fetchPages, fetchPageConversions, fetchDailyTotals } from './functions/lib/ga4-api';
+import { fetchSessions, fetchConversions, fetchPages, fetchPageConversions, fetchDailyTotals, fetchDailyConversions } from './functions/lib/ga4-api';
 import { todaySP, yesterdaySP, getPreviousPeriod } from './functions/lib/date-utils';
 import {
   syncSessions,
@@ -8,6 +8,7 @@ import {
   syncPages,
   syncPageConversions,
   syncDailyTotals,
+  syncDailyConversions,
   queryKPIs,
   queryTimeseries,
   queryByChannel,
@@ -541,21 +542,23 @@ Variação vs período anterior:
         const accessToken = await getAccessToken(env);
 
         // Fetch all data from GA4 in parallel
-        const [sessions, conversions, pages, pageConversions, dailyTotals] = await Promise.all([
+        const [sessions, conversions, pages, pageConversions, dailyTotals, dailyConversions] = await Promise.all([
           fetchSessions(env, startDate, endDate),
           fetchConversions(env, startDate, endDate),
           fetchPages(env, startDate, endDate),
           fetchPageConversions(env, startDate, endDate),
           fetchDailyTotals(env, startDate, endDate),
+          fetchDailyConversions(env, startDate, endDate),
         ]);
 
         // Sync all to D1
-        const [syncedSessions, syncedConversions, syncedPages, syncedPageConversions, syncedDailyTotals] = await Promise.all([
+        const [syncedSessions, syncedConversions, syncedPages, syncedPageConversions, syncedDailyTotals, syncedDailyConversions] = await Promise.all([
           syncSessions(env.DB, sessions),
           syncConversions(env.DB, conversions),
           syncPages(env.DB, pages),
           syncPageConversions(env.DB, pageConversions),
           syncDailyTotals(env.DB, dailyTotals),
+          syncDailyConversions(env.DB, dailyConversions),
         ]);
 
         return jsonResponse({
@@ -566,6 +569,7 @@ Variação vs período anterior:
             pages: syncedPages,
             pageConversions: syncedPageConversions,
             dailyTotals: syncedDailyTotals,
+            dailyConversions: syncedDailyConversions,
           },
           dateRange: { startDate, endDate },
         });
