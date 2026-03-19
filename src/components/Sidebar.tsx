@@ -26,12 +26,11 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="mb-8 px-3">
         <div className="flex items-center gap-2 mb-1">
-          <span
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold"
-            style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' }}
-          >
-            G
-          </span>
+          <img
+            src="/logo_petbee_icon.png"
+            alt="Petbee"
+            className="w-7 h-7 rounded-lg object-contain"
+          />
           <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
             Propriedade GA4
           </span>

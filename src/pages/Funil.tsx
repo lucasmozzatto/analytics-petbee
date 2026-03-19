@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useTimeWindow } from '../hooks/useGA4Data';
 import { getFunil, getFunilPages } from '../lib/api';
 import type { FunnelData } from '../types';
 import TimeWindowPicker from '../components/TimeWindowPicker';
 import CompareToggle from '../components/CompareToggle';
 import FunnelChart from '../components/FunnelChart';
+import FunnelBlocklistModal from '../components/FunnelBlocklistModal';
 import { formatNumber, formatPercent } from '../lib/format';
 
 export default function Funil() {
@@ -14,13 +15,19 @@ export default function Funil() {
   const [selectedPage, setSelectedPage] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [blocklistOpen, setBlocklistOpen] = useState(false);
+  const [pageRefreshKey, setPageRefreshKey] = useState(0);
+
+  const handleBlocklistSaved = useCallback(() => {
+    setPageRefreshKey((k) => k + 1);
+  }, []);
 
   // Load available pages
   useEffect(() => {
     getFunilPages(startDate, endDate)
       .then((res) => setPages(res.pages))
       .catch(console.error);
-  }, [startDate, endDate]);
+  }, [startDate, endDate, pageRefreshKey]);
 
   // Load funnel data
   useEffect(() => {
@@ -55,9 +62,19 @@ export default function Funil() {
         style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
       >
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-semibold tracking-wider" style={{ color: 'var(--text-muted)' }}>
-            FILTRAR POR PÁGINA
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-semibold tracking-wider" style={{ color: 'var(--text-muted)' }}>
+              FILTRAR POR PÁGINA
+            </h3>
+            <button
+              onClick={() => setBlocklistOpen(true)}
+              className="text-sm cursor-pointer transition-opacity hover:opacity-80"
+              style={{ color: 'var(--text-muted)' }}
+              title="Configurar visibilidade de páginas"
+            >
+              &#9881;
+            </button>
+          </div>
           {selectedPage && (
             <button
               onClick={() => setSelectedPage('')}
@@ -194,6 +211,12 @@ export default function Funil() {
           )}
         </>
       )}
+
+      <FunnelBlocklistModal
+        open={blocklistOpen}
+        onClose={() => setBlocklistOpen(false)}
+        onSaved={handleBlocklistSaved}
+      />
     </div>
   );
 }

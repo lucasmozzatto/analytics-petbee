@@ -4,6 +4,7 @@ import type {
   UTMRow,
   UTMDimension,
   FunnelData,
+  FunnelPageConfig,
   PageRow,
   InsightFull,
   InsightSummary,
@@ -167,4 +168,26 @@ export function getInsightHistory(): Promise<InsightSummary[]> {
  */
 export function getInsight(id: number): Promise<InsightFull> {
   return fetchAPI<InsightFull>(`/api/insights/${id}`);
+}
+
+/**
+ * GET /api/config/funnel-pages
+ * Returns all pages with blocked status for the funnel page selector.
+ */
+export function getFunnelPageConfig(): Promise<{ pages: FunnelPageConfig[] }> {
+  return fetchAPI<{ pages: FunnelPageConfig[] }>('/api/config/funnel-pages');
+}
+
+/**
+ * POST /api/config/funnel-pages
+ * Updates which pages are blocked/unblocked in the funnel page selector.
+ */
+export function updateFunnelPageConfig(
+  blocked: string[],
+  unblocked: string[]
+): Promise<{ success: boolean; updated: number }> {
+  return fetchAPI<{ success: boolean; updated: number }>('/api/config/funnel-pages', {
+    method: 'POST',
+    body: JSON.stringify({ blocked, unblocked }),
+  });
 }

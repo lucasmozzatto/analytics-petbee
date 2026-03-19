@@ -17,6 +17,8 @@ import {
   queryFunnel,
   queryPageFunnel,
   queryFunnelPages,
+  queryBlockedFunnelPages,
+  updateBlockedFunnelPages,
   queryPages,
   queryInsightHistory,
   queryInsight,
@@ -516,6 +518,56 @@ Variação vs período anterior:
           id: insightId,
           analysis,
           createdAt: new Date().toISOString(),
+        });
+      }
+
+      // ────────────────────────────────────────────────
+      // GET /api/config/funnel-pages
+      // ────────────────────────────────────────────────
+      if (pathname === '/api/config/funnel-pages' && method === 'GET') {
+        // Get all distinct pages from ga4_page_conversions (all time) + blocked status
+        const allPagesResult = await env.DB
+          .prepare(
+            `SELECT DISTINCT page_path FROM ga4_page_conversions ORDER BY page_path`
+          )
+          .all();
+
+        const allPages = (allPagesResult.results as Record<string, unknown>[]).map(
+          (row) => row.page_path as string
+        );
+
+        const blockedPages = await queryBlockedFunnelPages(env.DB);
+        const blockedSet = new Set(blockedPages);
+
+        const pages = allPages.map((pagePath) => ({
+          pagePath,
+          blocked: blockedSet.has(pagePath),
+        }));
+
+        return jsonResponse({ pages });
+      }
+
+      // ────────────────────────────────────────────────
+      // POST /api/config/funnel-pages
+      // ────────────────────────────────────────────────
+      if (pathname === '/api/config/funnel-pages' && method === 'POST') {
+        const body = (await request.json()) as {
+          blocked?: string[];
+          unblocked?: string[];
+        };
+
+        const blocked = body.blocked ?? [];
+        const unblocked = body.unblocked ?? [];
+
+        if (blocked.length === 0 && unblocked.length === 0) {
+          return jsonResponse({ success: true, updated: 0 });
+        }
+
+        await updateBlockedFunnelPages(env.DB, blocked, unblocked);
+
+        return jsonResponse({
+          success: true,
+          updated: blocked.length + unblocked.length,
         });
       }
 

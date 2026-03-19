@@ -126,6 +126,13 @@ export interface TrafegoResponse {
   previous?: { byChannel: ChannelRow[] };
 }
 
+/* ===== Funnel Page Config ===== */
+
+export interface FunnelPageConfig {
+  pagePath: string;
+  blocked: boolean;
+}
+
 /* ===== Time Window ===== */
 
 export interface TimeWindow {

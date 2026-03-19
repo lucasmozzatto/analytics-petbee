@@ -840,6 +840,7 @@ export async function syncPageConversions(db: D1Database, rows: PageConversionRo
 
 /**
  * Returns distinct page paths that have conversion events in the given period.
+ * Excludes pages in the funnel_page_blocklist.
  */
 export async function queryFunnelPages(
   db: D1Database,
@@ -851,6 +852,7 @@ export async function queryFunnelPages(
       `SELECT DISTINCT page_path
       FROM ga4_page_conversions
       WHERE date_ref >= ? AND date_ref <= ?
+        AND page_path NOT IN (SELECT page_path FROM funnel_page_blocklist)
       ORDER BY page_path`
     )
     .bind(startDate, endDate)
@@ -859,6 +861,57 @@ export async function queryFunnelPages(
   return (result.results as Record<string, unknown>[]).map(
     (row) => row.page_path as string
   );
+}
+
+/**
+ * Returns all blocked page paths from the blocklist.
+ */
+export async function queryBlockedFunnelPages(db: D1Database): Promise<string[]> {
+  const result = await db
+    .prepare(`SELECT page_path FROM funnel_page_blocklist ORDER BY page_path`)
+    .all();
+
+  return (result.results as Record<string, unknown>[]).map(
+    (row) => row.page_path as string
+  );
+}
+
+/**
+ * Updates the funnel page blocklist: inserts blocked pages and removes unblocked ones.
+ * Batches in chunks of 100 for D1 limits.
+ */
+export async function updateBlockedFunnelPages(
+  db: D1Database,
+  blocked: string[],
+  unblocked: string[]
+): Promise<void> {
+  const stmts: D1PreparedStatement[] = [];
+
+  for (const path of blocked) {
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO funnel_page_blocklist (page_path) VALUES (?)
+          ON CONFLICT (page_path) DO NOTHING`
+        )
+        .bind(path)
+    );
+  }
+
+  for (const path of unblocked) {
+    stmts.push(
+      db
+        .prepare(`DELETE FROM funnel_page_blocklist WHERE page_path = ?`)
+        .bind(path)
+    );
+  }
+
+  if (stmts.length === 0) return;
+
+  const chunks = chunkArray(stmts, 100);
+  for (const chunk of chunks) {
+    await db.batch(chunk);
+  }
 }
 
 /**

@@ -94,6 +94,12 @@ CREATE TABLE IF NOT EXISTS ai_insights (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Funnel Page Blocklist (hidden pages in funnel page selector)
+CREATE TABLE IF NOT EXISTS funnel_page_blocklist (
+  page_path TEXT PRIMARY KEY,
+  blocked_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_sessions_date ON ga4_sessions(date_ref);
 CREATE INDEX IF NOT EXISTS idx_conversions_date ON ga4_conversions(date_ref);
