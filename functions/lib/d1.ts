@@ -629,7 +629,7 @@ export async function queryFunnel(
     { name: 'Carrinho', event: 'add_to_cart' },
     { name: 'Checkout', event: 'begin_checkout' },
     { name: 'Pagamento', event: 'add_payment_info' },
-    { name: 'Contrato', event: 'purchase' },
+    { name: 'Venda', event: 'purchase' },
   );
 
   const steps: FunnelStep[] = stepDefs.map((def) => {
@@ -909,7 +909,7 @@ export async function queryPageFunnel(
     { name: 'Carrinho', event: 'add_to_cart' },
     { name: 'Checkout', event: 'begin_checkout' },
     { name: 'Pagamento', event: 'add_payment_info' },
-    { name: 'Contrato', event: 'purchase' },
+    { name: 'Venda', event: 'purchase' },
   ];
 
   // Only include steps that have events for this page

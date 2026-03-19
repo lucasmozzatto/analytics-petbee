@@ -304,14 +304,14 @@ export default {
           `| Duração Média | ${formatDuration(kpis.avgSessionDuration)} |`,
           `| Páginas/Sessão | ${kpis.sessions > 0 ? (kpis.pageViews / kpis.sessions).toFixed(2) : '0'} |`,
           `| Leads | ${kpis.leads.toLocaleString('pt-BR')} |`,
-          `| Contratos | ${kpis.contracts.toLocaleString('pt-BR')} |`,
+          `| Vendas | ${kpis.contracts.toLocaleString('pt-BR')} |`,
           `| Taxa Conv. Lead | ${formatPercent(kpis.convRateLead)} |`,
-          `| Taxa Conv. Contrato | ${formatPercent(kpis.convRateContract)} |`,
+          `| Taxa Conv. Venda | ${formatPercent(kpis.convRateContract)} |`,
         ].join('\n');
 
         // Canais
         const tabelaCanais = [
-          '| Canal | Sessões | Usuários | Bounce Rate | Duração | Leads | Contratos |',
+          '| Canal | Sessões | Usuários | Bounce Rate | Duração | Leads | Vendas |',
           '|-------|---------|----------|-------------|---------|-------|-----------|',
           ...byChannel.map(
             (ch) =>
@@ -321,7 +321,7 @@ export default {
 
         // UTMs (campaign with source/medium from top campaigns)
         const tabelaUtms = [
-          '| Campanha | Sessões | Leads | Contratos | Conv. Lead | Conv. Contrato |',
+          '| Campanha | Sessões | Leads | Vendas | Conv. Lead | Conv. Venda |',
           '|----------|---------|-------|-----------|------------|----------------|',
           ...utmCampaigns
             .filter((u) => u.sessions > 0)
@@ -384,7 +384,7 @@ export default {
         // ── Calculate variations ──
         const varSessoes = pctVar(kpis.sessions, prevKPIs.sessions);
         const varLeads = pctVar(kpis.leads, prevKPIs.leads);
-        const varContratos = pctVar(kpis.contracts, prevKPIs.contracts);
+        const varVendas = pctVar(kpis.contracts, prevKPIs.contracts);
         const varBounce = pctVar(kpis.bounceRate, prevKPIs.bounceRate);
         const varDuracao = pctVar(kpis.avgSessionDuration, prevKPIs.avgSessionDuration);
 
@@ -395,12 +395,12 @@ Contexto da Petbee:
 - A Petbee oferece planos de saúde para pets (cães e gatos)
 - O funil de conversão: Landing page (generate_lead) → site principal (add_to_cart → begin_checkout → add_payment_info → purchase)
 - "Leads" = evento generate_lead (formulário preenchido na landing page)
-- "Contratos" = evento purchase (assinatura efetivada)
+- "Vendas" = evento purchase (venda efetivada)
 
 Benchmarks de referência:
 - Bounce rate landing page < 60%
 - Duração média de sessão > 1m30s
-- Taxa lead-to-contrato > 8%
+- Taxa lead-to-venda > 8%
 - CTR orgânico > 3%
 
 Canais:
@@ -423,7 +423,7 @@ Alertas obrigatórios (mencionar se detectado):
 - Bounce rate > 60% em páginas de conversão
 - Queda súbita de tráfego orgânico (> 20% vs período anterior)
 - Campanhas UTM com alto volume de sessões mas zero conversão
-- Taxa de conversão lead-to-contrato abaixo de 5%
+- Taxa de conversão lead-to-venda abaixo de 5%
 - Duração média de sessão < 30 segundos em qualquer canal`;
 
         const systemPrompt = body.systemPrompt || defaultSystemPrompt;
@@ -444,7 +444,7 @@ Alertas obrigatórios (mencionar se detectado):
 Variação vs período anterior:
 - Sessões: {var_sessoes}
 - Leads: {var_leads}
-- Contratos: {var_contratos}
+- Vendas: {var_contratos}
 - Bounce Rate: {var_bounce}
 - Duração Média: {var_duracao}`;
 
@@ -457,7 +457,7 @@ Variação vs período anterior:
           '{n_dias}': nDias.toString(),
           '{var_sessoes}': varSessoes,
           '{var_leads}': varLeads,
-          '{var_contratos}': varContratos,
+          '{var_contratos}': varVendas,
           '{var_bounce}': varBounce,
           '{var_duracao}': varDuracao,
           '{tabela_kpis_gerais}': tabelaKPIs,

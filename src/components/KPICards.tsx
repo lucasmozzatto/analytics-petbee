@@ -21,7 +21,7 @@ const CARDS: CardConfig[] = [
   { label: 'BOUNCE RATE', key: 'bounceRate', format: (v) => formatPercent(v), color: 'var(--red)', invert: true },
   { label: 'DURAÇÃO MÉDIA', key: 'avgSessionDuration', format: formatDuration, color: 'var(--blue)' },
   { label: 'LEADS', key: 'leads', format: formatNumber, color: 'var(--accent)' },
-  { label: 'CONTRATOS', key: 'contracts', format: formatNumber, color: 'var(--teal)' },
+  { label: 'VENDAS', key: 'contracts', format: formatNumber, color: 'var(--teal)' },
   { label: 'RECEITA', key: 'revenue', format: formatCurrency, color: 'var(--amber)' },
 ];
 

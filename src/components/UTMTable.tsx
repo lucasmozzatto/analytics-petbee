@@ -18,7 +18,7 @@ export default function UTMTable({ data, dimensionLabel }: UTMTableProps) {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)' }}>
-              {[dimensionLabel, 'Sessões', 'Leads', 'Contratos', 'Conv. Lead', 'Conv. Contrato'].map((h) => (
+              {[dimensionLabel, 'Sessões', 'Leads', 'Vendas', 'Conv. Lead', 'Conv. Venda'].map((h) => (
                 <th
                   key={h}
                   className="px-4 py-3 text-left text-[10px] font-semibold tracking-wider"
