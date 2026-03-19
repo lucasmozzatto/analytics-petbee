@@ -209,8 +209,9 @@ export interface ConversionRow {
   eventValue: number;
 }
 
-const CONVERSION_EVENTS = [
+export const CONVERSION_EVENTS = [
   'generate_lead',
+  'click_whatsapp',
   'add_to_cart',
   'begin_checkout',
   'add_payment_info',
@@ -307,5 +308,58 @@ export async function fetchPages(
     screenPageViews: parseInt(row.metricValues[0].value, 10) || 0,
     avgTimeOnPage: parseFloat(row.metricValues[1].value) || 0,
     bounceRate: parseFloat(row.metricValues[2].value) || 0,
+  }));
+}
+
+// ── Page Conversion Fetcher ──
+
+export interface PageConversionRow {
+  date: string;
+  eventName: string;
+  pagePath: string;
+  eventCount: number;
+  eventValue: number;
+}
+
+/**
+ * Fetches conversion events broken down by page path from GA4.
+ * Dimensions: date, eventName, pagePath
+ * Metrics: eventCount, eventValue
+ * Filtered to CONVERSION_EVENTS only.
+ */
+export async function fetchPageConversions(
+  env: Env,
+  startDate: string,
+  endDate: string
+): Promise<PageConversionRow[]> {
+  const response = await runReport(env, {
+    dateRanges: [{ startDate, endDate }],
+    dimensions: [
+      { name: 'date' },
+      { name: 'eventName' },
+      { name: 'pagePath' },
+    ],
+    metrics: [
+      { name: 'eventCount' },
+      { name: 'eventValue' },
+    ],
+    dimensionFilter: {
+      filter: {
+        fieldName: 'eventName',
+        inListFilter: {
+          values: CONVERSION_EVENTS,
+        },
+      },
+    },
+  });
+
+  if (!response.rows) return [];
+
+  return response.rows.map((row) => ({
+    date: formatGA4Date(row.dimensionValues[0].value),
+    eventName: row.dimensionValues[1].value || '',
+    pagePath: row.dimensionValues[2].value || '',
+    eventCount: parseInt(row.metricValues[0].value, 10) || 0,
+    eventValue: parseFloat(row.metricValues[1].value) || 0,
   }));
 }

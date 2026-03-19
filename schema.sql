@@ -44,6 +44,16 @@ CREATE TABLE IF NOT EXISTS ga4_pages (
   PRIMARY KEY (date_ref, page_path)
 );
 
+-- GA4 Page Conversions (eventos de conversão diários por página)
+CREATE TABLE IF NOT EXISTS ga4_page_conversions (
+  date_ref TEXT NOT NULL,
+  event_name TEXT NOT NULL,
+  page_path TEXT NOT NULL,
+  event_count INTEGER NOT NULL DEFAULT 0,
+  event_value REAL NOT NULL DEFAULT 0,
+  PRIMARY KEY (date_ref, event_name, page_path)
+);
+
 -- GA4 Account info
 CREATE TABLE IF NOT EXISTS ga4_account (
   property_id TEXT PRIMARY KEY,
@@ -67,4 +77,6 @@ CREATE INDEX IF NOT EXISTS idx_sessions_date ON ga4_sessions(date_ref);
 CREATE INDEX IF NOT EXISTS idx_conversions_date ON ga4_conversions(date_ref);
 CREATE INDEX IF NOT EXISTS idx_conversions_event ON ga4_conversions(event_name);
 CREATE INDEX IF NOT EXISTS idx_pages_date ON ga4_pages(date_ref);
+CREATE INDEX IF NOT EXISTS idx_page_conversions_date ON ga4_page_conversions(date_ref);
+CREATE INDEX IF NOT EXISTS idx_page_conversions_page ON ga4_page_conversions(page_path);
 CREATE INDEX IF NOT EXISTS idx_insights_created ON ai_insights(created_at);

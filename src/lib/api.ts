@@ -90,15 +90,30 @@ export function getUTMs(
 /**
  * GET /api/metrics/funil
  * Returns funnel steps and step-to-step conversion rates.
+ * Optionally filtered by page path.
  */
 export function getFunil(
   startDate: string,
   endDate: string,
-  compare?: boolean
+  compare?: boolean,
+  page?: string
 ): Promise<FunnelData> {
-  return fetchAPI<FunnelData>(
-    `/api/metrics/funil?${dateParams(startDate, endDate, compare)}`
-  );
+  const params = new URLSearchParams({ startDate, endDate });
+  if (compare) params.set('compare', 'true');
+  if (page) params.set('page', page);
+  return fetchAPI<FunnelData>(`/api/metrics/funil?${params.toString()}`);
+}
+
+/**
+ * GET /api/metrics/funil/pages
+ * Returns list of page paths that have conversion events.
+ */
+export function getFunilPages(
+  startDate: string,
+  endDate: string
+): Promise<{ pages: string[] }> {
+  const params = new URLSearchParams({ startDate, endDate });
+  return fetchAPI<{ pages: string[] }>(`/api/metrics/funil/pages?${params.toString()}`);
 }
 
 /**

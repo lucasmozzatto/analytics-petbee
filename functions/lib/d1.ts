@@ -1,4 +1,4 @@
-import type { SessionRow, ConversionRow, PageRow } from './ga4-api';
+import type { SessionRow, ConversionRow, PageRow, PageConversionRow } from './ga4-api';
 
 // ── Sync Helpers ──
 
@@ -513,7 +513,7 @@ export async function queryFunnel(
       `SELECT event_name, SUM(event_count) AS total
       FROM ga4_conversions
       WHERE date_ref >= ? AND date_ref <= ?
-        AND event_name IN ('generate_lead', 'add_to_cart', 'begin_checkout', 'add_payment_info', 'purchase')
+        AND event_name IN ('generate_lead', 'click_whatsapp', 'add_to_cart', 'begin_checkout', 'add_payment_info', 'purchase')
       GROUP BY event_name`
     )
     .bind(startDate, endDate);
@@ -529,15 +529,23 @@ export async function queryFunnel(
     eventCounts[row.event_name as string] = (row.total as number) ?? 0;
   }
 
-  // Define funnel steps in order
-  const stepDefs = [
+  // Define funnel steps in order — click_whatsapp only shown if events exist
+  const stepDefs: { name: string; event: string }[] = [
     { name: 'Visitantes', event: 'session' },
     { name: 'Leads', event: 'generate_lead' },
+  ];
+
+  // Add Click WhatsApp step after Leads only if there are click_whatsapp events
+  if ((eventCounts['click_whatsapp'] ?? 0) > 0) {
+    stepDefs.push({ name: 'Click WhatsApp', event: 'click_whatsapp' });
+  }
+
+  stepDefs.push(
     { name: 'Carrinho', event: 'add_to_cart' },
     { name: 'Checkout', event: 'begin_checkout' },
     { name: 'Pagamento', event: 'add_payment_info' },
     { name: 'Contrato', event: 'purchase' },
-  ];
+  );
 
   const steps: FunnelStep[] = stepDefs.map((def) => {
     const count = def.event === 'session' ? totalSessions : (eventCounts[def.event] ?? 0);
@@ -700,6 +708,164 @@ export async function saveInsight(
     .first<{ id: number }>();
 
   return result!.id;
+}
+
+// ── Page Conversion Sync & Query Helpers ──
+
+/**
+ * Upserts page conversion rows into ga4_page_conversions.
+ * Batches in chunks of 100.
+ */
+export async function syncPageConversions(db: D1Database, rows: PageConversionRow[]): Promise<number> {
+  if (rows.length === 0) return 0;
+
+  const sql = `
+    INSERT INTO ga4_page_conversions (
+      date_ref, event_name, page_path, event_count, event_value
+    ) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT (date_ref, event_name, page_path)
+    DO UPDATE SET
+      event_count = excluded.event_count,
+      event_value = excluded.event_value
+  `;
+
+  const chunks = chunkArray(rows, 100);
+  for (const chunk of chunks) {
+    const stmts = chunk.map((r) =>
+      db.prepare(sql).bind(
+        r.date,
+        r.eventName,
+        r.pagePath,
+        r.eventCount,
+        r.eventValue
+      )
+    );
+    await db.batch(stmts);
+  }
+
+  return rows.length;
+}
+
+/**
+ * Returns distinct page paths that have conversion events in the given period.
+ */
+export async function queryFunnelPages(
+  db: D1Database,
+  startDate: string,
+  endDate: string
+): Promise<string[]> {
+  const result = await db
+    .prepare(
+      `SELECT DISTINCT page_path
+      FROM ga4_page_conversions
+      WHERE date_ref >= ? AND date_ref <= ?
+      ORDER BY page_path`
+    )
+    .bind(startDate, endDate)
+    .all();
+
+  return (result.results as Record<string, unknown>[]).map(
+    (row) => row.page_path as string
+  );
+}
+
+/**
+ * Returns funnel data filtered by page path.
+ * If pagePath is provided, uses ga4_pages for visitors and ga4_page_conversions for events.
+ * If pagePath is omitted or "all", falls back to the global queryFunnel logic.
+ */
+export async function queryPageFunnel(
+  db: D1Database,
+  startDate: string,
+  endDate: string,
+  pagePath?: string
+): Promise<FunnelData> {
+  // No page filter — use the global funnel
+  if (!pagePath || pagePath === 'all') {
+    return queryFunnel(db, startDate, endDate);
+  }
+
+  const likePattern = pagePath + '%';
+
+  // Get page visitors (screen_page_views) from ga4_pages
+  const visitorsQuery = db
+    .prepare(
+      `SELECT COALESCE(SUM(screen_page_views), 0) AS total
+      FROM ga4_pages
+      WHERE date_ref >= ? AND date_ref <= ? AND page_path LIKE ?`
+    )
+    .bind(startDate, endDate, likePattern);
+
+  // Get conversion events for this page path prefix
+  const eventsQuery = db
+    .prepare(
+      `SELECT event_name, SUM(event_count) AS total
+      FROM ga4_page_conversions
+      WHERE date_ref >= ? AND date_ref <= ? AND page_path LIKE ?
+      GROUP BY event_name`
+    )
+    .bind(startDate, endDate, likePattern);
+
+  const [visitorsResult, eventsResult] = await db.batch([visitorsQuery, eventsQuery]);
+
+  const totalVisitors =
+    ((visitorsResult.results[0] as Record<string, number>)?.total as number) ?? 0;
+
+  // Build event counts map
+  const eventCounts: Record<string, number> = {};
+  for (const row of eventsResult.results as Record<string, unknown>[]) {
+    eventCounts[row.event_name as string] = (row.total as number) ?? 0;
+  }
+
+  // All possible funnel steps mapped by event name
+  const allStepDefs: { name: string; event: string }[] = [
+    { name: 'Leads', event: 'generate_lead' },
+    { name: 'Click WhatsApp', event: 'click_whatsapp' },
+    { name: 'Carrinho', event: 'add_to_cart' },
+    { name: 'Checkout', event: 'begin_checkout' },
+    { name: 'Pagamento', event: 'add_payment_info' },
+    { name: 'Contrato', event: 'purchase' },
+  ];
+
+  // Only include steps that have events for this page
+  const activeStepDefs = allStepDefs.filter(
+    (def) => (eventCounts[def.event] ?? 0) > 0
+  );
+
+  // Always start with Visitantes
+  const steps: FunnelStep[] = [
+    {
+      name: 'Visitantes',
+      event: 'page_view',
+      count: totalVisitors,
+      rate: 100.0,
+    },
+  ];
+
+  // Add active conversion steps
+  for (const def of activeStepDefs) {
+    const count = eventCounts[def.event] ?? 0;
+    steps.push({
+      name: def.name,
+      event: def.event,
+      count,
+      rate: totalVisitors > 0 ? (count / totalVisitors) * 100 : 0,
+    });
+  }
+
+  // Calculate step-to-step conversions
+  const stepConversions: StepConversion[] = [];
+  for (let i = 0; i < steps.length - 1; i++) {
+    const from = steps[i];
+    const to = steps[i + 1];
+    stepConversions.push({
+      from: from.name,
+      to: to.name,
+      rate: from.count > 0 ? (to.count / from.count) * 100 : 0,
+    });
+  }
+
+  return { steps, stepConversions };
 }
 
 // ── Internal Helpers ──

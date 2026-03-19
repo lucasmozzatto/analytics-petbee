@@ -1,17 +1,20 @@
 import type { Env } from './functions/lib/types';
 import { getAccessToken } from './functions/lib/google-auth';
-import { fetchSessions, fetchConversions, fetchPages } from './functions/lib/ga4-api';
+import { fetchSessions, fetchConversions, fetchPages, fetchPageConversions } from './functions/lib/ga4-api';
 import { todaySP, yesterdaySP, getPreviousPeriod } from './functions/lib/date-utils';
 import {
   syncSessions,
   syncConversions,
   syncPages,
+  syncPageConversions,
   queryKPIs,
   queryTimeseries,
   queryByChannel,
   queryBySourceMedium,
   queryByUTMDimension,
   queryFunnel,
+  queryPageFunnel,
+  queryFunnelPages,
   queryPages,
   queryInsightHistory,
   queryInsight,
@@ -182,13 +185,25 @@ export default {
       }
 
       // ────────────────────────────────────────────────
+      // GET /api/metrics/funil/pages
+      // ────────────────────────────────────────────────
+      if (pathname === '/api/metrics/funil/pages' && method === 'GET') {
+        const { startDate, endDate } = getDateParams(url);
+        const pages = await queryFunnelPages(env.DB, startDate, endDate);
+        return jsonResponse({ pages });
+      }
+
+      // ────────────────────────────────────────────────
       // GET /api/metrics/funil
       // ────────────────────────────────────────────────
       if (pathname === '/api/metrics/funil' && method === 'GET') {
         const { startDate, endDate } = getDateParams(url);
         const compare = url.searchParams.get('compare') === 'true';
+        const pagePath = url.searchParams.get('page') ?? undefined;
 
-        const funnel = await queryFunnel(env.DB, startDate, endDate);
+        const funnel = pagePath
+          ? await queryPageFunnel(env.DB, startDate, endDate, pagePath)
+          : await queryFunnel(env.DB, startDate, endDate);
 
         const result: Record<string, unknown> = {
           steps: funnel.steps,
@@ -197,7 +212,9 @@ export default {
 
         if (compare) {
           const prev = getPreviousPeriod(startDate, endDate);
-          const previousFunnel = await queryFunnel(env.DB, prev.startDate, prev.endDate);
+          const previousFunnel = pagePath
+            ? await queryPageFunnel(env.DB, prev.startDate, prev.endDate, pagePath)
+            : await queryFunnel(env.DB, prev.startDate, prev.endDate);
           result.previous = {
             steps: previousFunnel.steps,
             stepConversions: previousFunnel.stepConversions,
@@ -523,17 +540,19 @@ Variação vs período anterior:
         const accessToken = await getAccessToken(env);
 
         // Fetch all data from GA4 in parallel
-        const [sessions, conversions, pages] = await Promise.all([
+        const [sessions, conversions, pages, pageConversions] = await Promise.all([
           fetchSessions(env, startDate, endDate),
           fetchConversions(env, startDate, endDate),
           fetchPages(env, startDate, endDate),
+          fetchPageConversions(env, startDate, endDate),
         ]);
 
         // Sync all to D1
-        const [syncedSessions, syncedConversions, syncedPages] = await Promise.all([
+        const [syncedSessions, syncedConversions, syncedPages, syncedPageConversions] = await Promise.all([
           syncSessions(env.DB, sessions),
           syncConversions(env.DB, conversions),
           syncPages(env.DB, pages),
+          syncPageConversions(env.DB, pageConversions),
         ]);
 
         return jsonResponse({
@@ -542,6 +561,7 @@ Variação vs período anterior:
             sessions: syncedSessions,
             conversions: syncedConversions,
             pages: syncedPages,
+            pageConversions: syncedPageConversions,
           },
           dateRange: { startDate, endDate },
         });
