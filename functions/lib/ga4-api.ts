@@ -278,8 +278,8 @@ export interface DailyConversionRow {
 
 /**
  * Fetches conversion events aggregated by date+eventName only (no UTM dimensions).
- * Uses `sessions` metric which, combined with `eventName` dimension, gives
- * unique sessions where the event occurred — matching GA4 UI "Key events".
+ * Uses `keyEvents` metric — the exact same count GA4 UI shows as "Key events"
+ * (counted once per session, not every event fire).
  */
 export async function fetchDailyConversions(
   env: Env,
@@ -293,7 +293,7 @@ export async function fetchDailyConversions(
       { name: 'eventName' },
     ],
     metrics: [
-      { name: 'sessions' },
+      { name: 'keyEvents' },
       { name: 'eventCount' },
       { name: 'eventValue' },
     ],
