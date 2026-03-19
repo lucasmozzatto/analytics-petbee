@@ -20,6 +20,8 @@ export interface TimeseriesPoint {
   date: string;
   sessions: number;
   users: number;
+  leads: number;
+  vendas: number;
 }
 
 /* ===== Traffic ===== */
@@ -86,10 +88,8 @@ export interface PageRow {
   pagePath: string;
   pageTitle: string;
   views: number;
-  uniqueViews: number;
   avgTimeOnPage: number;
   bounceRate: number;
-  exits: number;
 }
 
 /* ===== AI Insights ===== */

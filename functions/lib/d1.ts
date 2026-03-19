@@ -306,18 +306,20 @@ export interface TimeseriesPoint {
   date: string;
   sessions: number;
   users: number;
+  leads: number;
+  vendas: number;
 }
 
 /**
- * Returns daily sessions and users for the given date range.
- * Uses ga4_daily_totals for accurate deduplicated user counts.
+ * Returns daily sessions, users, leads and vendas for the given date range.
+ * Uses ga4_daily_totals for traffic and ga4_daily_conversions for events.
  */
 export async function queryTimeseries(
   db: D1Database,
   startDate: string,
   endDate: string
 ): Promise<TimeseriesPoint[]> {
-  const result = await db
+  const trafficQuery = db
     .prepare(
       `SELECT
         date_ref AS date,
@@ -327,14 +329,45 @@ export async function queryTimeseries(
       WHERE date_ref >= ? AND date_ref <= ?
       ORDER BY date_ref ASC`
     )
-    .bind(startDate, endDate)
-    .all();
+    .bind(startDate, endDate);
 
-  return (result.results as Record<string, unknown>[]).map((row) => ({
-    date: row.date as string,
-    sessions: (row.sessions as number) ?? 0,
-    users: (row.users as number) ?? 0,
-  }));
+  const conversionsQuery = db
+    .prepare(
+      `SELECT
+        date_ref AS date,
+        event_name,
+        CASE WHEN sessions_with_event > 0 THEN sessions_with_event ELSE event_count END AS total
+      FROM ga4_daily_conversions
+      WHERE date_ref >= ? AND date_ref <= ?
+        AND event_name IN ('generate_lead', 'purchase')
+      ORDER BY date_ref ASC`
+    )
+    .bind(startDate, endDate);
+
+  const [trafficResult, conversionsResult] = await db.batch([trafficQuery, conversionsQuery]);
+
+  // Build conversion map: date → { leads, vendas }
+  const convMap: Record<string, { leads: number; vendas: number }> = {};
+  for (const row of conversionsResult.results as Record<string, unknown>[]) {
+    const date = row.date as string;
+    if (!convMap[date]) convMap[date] = { leads: 0, vendas: 0 };
+    if (row.event_name === 'generate_lead') {
+      convMap[date].leads = (row.total as number) ?? 0;
+    } else if (row.event_name === 'purchase') {
+      convMap[date].vendas = (row.total as number) ?? 0;
+    }
+  }
+
+  return (trafficResult.results as Record<string, unknown>[]).map((row) => {
+    const date = row.date as string;
+    return {
+      date,
+      sessions: (row.sessions as number) ?? 0,
+      users: (row.users as number) ?? 0,
+      leads: convMap[date]?.leads ?? 0,
+      vendas: convMap[date]?.vendas ?? 0,
+    };
+  });
 }
 
 export interface ChannelRow {

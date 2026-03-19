@@ -27,7 +27,7 @@ export default function PageTable({ data, total, page, pageSize, onPageChange, o
         <table className="w-full text-sm">
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)' }}>
-              {['Página', 'Título', 'Views', 'Views Únicas', 'Tempo Médio', 'Bounce Rate', 'Saídas'].map((h) => (
+              {['Página', 'Título', 'Views', 'Tempo Médio', 'Bounce Rate'].map((h) => (
                 <th
                   key={h}
                   className="px-4 py-3 text-left text-[10px] font-semibold tracking-wider"
@@ -57,12 +57,10 @@ export default function PageTable({ data, total, page, pageSize, onPageChange, o
                   {row.pageTitle}
                 </td>
                 <td className="px-4 py-3 text-right" style={{ fontFamily: 'var(--mono)' }}>{formatNumber(row.views)}</td>
-                <td className="px-4 py-3 text-right" style={{ fontFamily: 'var(--mono)' }}>{formatNumber(row.uniqueViews)}</td>
                 <td className="px-4 py-3 text-right" style={{ fontFamily: 'var(--mono)' }}>{formatDuration(row.avgTimeOnPage)}</td>
                 <td className="px-4 py-3 text-right" style={{ fontFamily: 'var(--mono)', color: bounceColor(row.bounceRate) }}>
                   {formatPercent(row.bounceRate)}
                 </td>
-                <td className="px-4 py-3 text-right" style={{ fontFamily: 'var(--mono)' }}>{formatNumber(row.exits)}</td>
               </tr>
             ))}
           </tbody>
