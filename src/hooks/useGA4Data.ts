@@ -105,6 +105,7 @@ export function useTimeWindow(defaultWindow = '7d'): UseTimeWindowResult {
     const nowUTC = new Date();
     const now = toZonedTime(nowUTC, TZ);
     const today = startOfDay(now);
+    const yesterday = subDays(today, 1);
 
     let start: Date;
     let end: Date;
@@ -116,28 +117,28 @@ export function useTimeWindow(defaultWindow = '7d'): UseTimeWindowResult {
         break;
 
       case 'yesterday':
-        start = subDays(today, 1);
-        end = subDays(today, 1);
+        start = yesterday;
+        end = yesterday;
         break;
 
       case '7d':
-        start = subDays(today, 6);
-        end = today;
+        start = subDays(yesterday, 6);
+        end = yesterday;
         break;
 
       case '14d':
-        start = subDays(today, 13);
-        end = today;
+        start = subDays(yesterday, 13);
+        end = yesterday;
         break;
 
       case '30d':
-        start = subDays(today, 29);
-        end = today;
+        start = subDays(yesterday, 29);
+        end = yesterday;
         break;
 
       case 'this_month':
         start = startOfMonth(today);
-        end = today;
+        end = yesterday;
         break;
 
       case 'last_month': {
@@ -148,8 +149,8 @@ export function useTimeWindow(defaultWindow = '7d'): UseTimeWindowResult {
       }
 
       default:
-        start = subDays(today, 6);
-        end = today;
+        start = subDays(yesterday, 6);
+        end = yesterday;
     }
 
     return {
