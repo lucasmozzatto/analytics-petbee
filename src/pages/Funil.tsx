@@ -45,7 +45,7 @@ export default function Funil() {
       </div>
 
       <div className="flex items-center gap-4 flex-wrap">
-        <TimeWindowPicker value={window} onChange={setWindow} />
+        <TimeWindowPicker value={window} onChange={setWindow} startDate={startDate} endDate={endDate} />
         <CompareToggle enabled={compare} onChange={setCompare} />
       </div>
 

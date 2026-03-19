@@ -36,7 +36,7 @@ export default function Paginas() {
         <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Top páginas por visualizações e conversão</p>
       </div>
 
-      <TimeWindowPicker value={window} onChange={setWindow} />
+      <TimeWindowPicker value={window} onChange={setWindow} startDate={startDate} endDate={endDate} />
 
       {loading ? (
         <div className="text-sm" style={{ color: 'var(--text-muted)' }}>Carregando...</div>

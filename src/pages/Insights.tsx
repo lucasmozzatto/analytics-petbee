@@ -57,7 +57,7 @@ export default function Insights() {
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Análise automatizada com inteligência artificial</p>
       </div>
 
-      <TimeWindowPicker value={window} onChange={setWindow} />
+      <TimeWindowPicker value={window} onChange={setWindow} startDate={startDate} endDate={endDate} />
 
       {/* Config section */}
       <div

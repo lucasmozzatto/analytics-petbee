@@ -42,7 +42,7 @@ export default function UTMs() {
         <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Análise por parâmetros UTM</p>
       </div>
 
-      <TimeWindowPicker value={window} onChange={setWindow} />
+      <TimeWindowPicker value={window} onChange={setWindow} startDate={startDate} endDate={endDate} />
 
       <div className="flex gap-1">
         {TABS.map((tab) => (
