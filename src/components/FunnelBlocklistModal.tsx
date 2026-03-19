@@ -13,6 +13,7 @@ export default function FunnelBlocklistModal({ open, onClose, onSaved }: Props) 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [prefixInput, setPrefixInput] = useState('');
   // Local toggle state: maps pagePath → blocked (true = hidden)
   const [toggles, setToggles] = useState<Record<string, boolean>>({});
   // Original state for diff calculation
@@ -22,6 +23,7 @@ export default function FunnelBlocklistModal({ open, onClose, onSaved }: Props) 
     if (!open) return;
     setLoading(true);
     setSearch('');
+    setPrefixInput('');
     getFunnelPageConfig()
       .then((res) => {
         setPages(res.pages);
@@ -45,8 +47,27 @@ export default function FunnelBlocklistModal({ open, onClose, onSaved }: Props) 
   const visibleCount = Object.values(toggles).filter((b) => !b).length;
   const totalCount = pages.length;
 
+  // Count how many pages match prefix and are currently visible
+  const prefixMatches = prefixInput
+    ? pages.filter((p) => p.pagePath.startsWith(prefixInput) && !toggles[p.pagePath]).length
+    : 0;
+
   const handleToggle = (pagePath: string) => {
     setToggles((prev) => ({ ...prev, [pagePath]: !prev[pagePath] }));
+  };
+
+  const handleBlockByPrefix = () => {
+    if (!prefixInput) return;
+    setToggles((prev) => {
+      const next = { ...prev };
+      for (const page of pages) {
+        if (page.pagePath.startsWith(prefixInput)) {
+          next[page.pagePath] = true;
+        }
+      }
+      return next;
+    });
+    setPrefixInput('');
   };
 
   const handleSave = async () => {
@@ -122,6 +143,49 @@ export default function FunnelBlocklistModal({ open, onClose, onSaved }: Props) 
           >
             &times;
           </button>
+        </div>
+
+        {/* Block by prefix */}
+        <div className="px-4 pt-3 shrink-0">
+          <label
+            className="text-[10px] font-semibold tracking-wider block mb-1.5"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            BLOQUEAR POR PREFIXO
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={prefixInput}
+              onChange={(e) => setPrefixInput(e.target.value)}
+              placeholder="/orders"
+              className="flex-1 rounded-lg px-3 py-2 text-sm"
+              style={{
+                backgroundColor: 'var(--surface-alt)',
+                border: '1px solid var(--border)',
+                color: 'var(--text)',
+                fontFamily: 'var(--mono)',
+                fontSize: '12px',
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleBlockByPrefix();
+              }}
+            />
+            <button
+              onClick={handleBlockByPrefix}
+              disabled={!prefixInput || prefixMatches === 0}
+              className="px-3 py-2 rounded-lg text-xs cursor-pointer transition-colors shrink-0"
+              style={{
+                fontFamily: 'var(--mono)',
+                backgroundColor: prefixMatches > 0 ? 'var(--red-dim)' : 'var(--surface-alt)',
+                color: prefixMatches > 0 ? 'var(--red)' : 'var(--text-muted)',
+                border: `1px solid ${prefixMatches > 0 ? 'var(--red)' : 'var(--border)'}`,
+                opacity: !prefixInput || prefixMatches === 0 ? 0.5 : 1,
+              }}
+            >
+              Bloquear {prefixMatches > 0 ? `(${prefixMatches})` : ''}
+            </button>
+          </div>
         </div>
 
         {/* Search */}
