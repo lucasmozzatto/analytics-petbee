@@ -206,6 +206,7 @@ export interface ConversionRow {
   content: string;
   term: string;
   eventCount: number;
+  eventValue: number;
 }
 
 const CONVERSION_EVENTS = [
@@ -237,6 +238,7 @@ export async function fetchConversions(
     ],
     metrics: [
       { name: 'eventCount' },
+      { name: 'eventValue' },
     ],
     dimensionFilter: {
       filter: {
@@ -259,6 +261,7 @@ export async function fetchConversions(
     content: row.dimensionValues[5].value || '',
     term: row.dimensionValues[6].value || '',
     eventCount: parseInt(row.metricValues[0].value, 10) || 0,
+    eventValue: parseFloat(row.metricValues[1].value) || 0,
   }));
 }
 

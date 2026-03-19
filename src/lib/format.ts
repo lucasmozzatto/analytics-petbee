@@ -36,6 +36,17 @@ export function formatDateBR(dateStr: string): string {
 }
 
 /**
+ * Format a number as BRL currency.
+ * Example: 12345.67 → "R$ 12.345,67"
+ */
+export function formatCurrency(value: number): string {
+  return value.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
+}
+
+/**
  * Format a number in compact notation (k, M) with pt-BR decimal comma.
  * Example: 12345 → "12,3k", 1500000 → "1,5M"
  */

@@ -63,11 +63,12 @@ export async function syncConversions(db: D1Database, rows: ConversionRow[]): Pr
   const sql = `
     INSERT INTO ga4_conversions (
       date_ref, event_name, source, medium, campaign, content, term,
-      event_count
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      event_count, event_value
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (date_ref, event_name, source, medium, campaign, content, term)
     DO UPDATE SET
-      event_count = excluded.event_count
+      event_count = excluded.event_count,
+      event_value = excluded.event_value
   `;
 
   const chunks = chunkArray(rows, 100);
@@ -81,7 +82,8 @@ export async function syncConversions(db: D1Database, rows: ConversionRow[]): Pr
         r.campaign,
         r.content,
         r.term,
-        r.eventCount
+        r.eventCount,
+        r.eventValue
       )
     );
     await db.batch(stmts);
@@ -139,6 +141,7 @@ export interface KPIs {
   pageViews: number;
   leads: number;
   contracts: number;
+  revenue: number;
   convRateLead: number;
   convRateContract: number;
 }
@@ -183,7 +186,7 @@ export async function queryKPIs(
 
   const contractsQuery = db
     .prepare(
-      `SELECT COALESCE(SUM(event_count), 0) AS total
+      `SELECT COALESCE(SUM(event_count), 0) AS total, COALESCE(SUM(event_value), 0) AS revenue
       FROM ga4_conversions
       WHERE date_ref >= ? AND date_ref <= ? AND event_name = 'purchase'`
     )
@@ -197,7 +200,9 @@ export async function queryKPIs(
 
   const s = sessionResult.results[0] as Record<string, number>;
   const leads = (leadsResult.results[0] as Record<string, number>)?.total ?? 0;
-  const contracts = (contractsResult.results[0] as Record<string, number>)?.total ?? 0;
+  const contractsRow = contractsResult.results[0] as Record<string, number>;
+  const contracts = contractsRow?.total ?? 0;
+  const revenue = contractsRow?.revenue ?? 0;
 
   const sessions = s?.sessions ?? 0;
 
@@ -210,6 +215,7 @@ export async function queryKPIs(
     pageViews: s?.page_views ?? 0,
     leads,
     contracts,
+    revenue,
     convRateLead: sessions > 0 ? (leads / sessions) * 100 : 0,
     convRateContract: sessions > 0 ? (contracts / sessions) * 100 : 0,
   };

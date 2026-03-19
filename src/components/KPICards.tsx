@@ -1,5 +1,5 @@
 import type { KPIs } from '../types';
-import { formatNumber, formatPercent, formatDuration } from '../lib/format';
+import { formatNumber, formatPercent, formatDuration, formatCurrency } from '../lib/format';
 import DeltaBadge from './DeltaBadge';
 
 interface KPICardsProps {
@@ -21,11 +21,13 @@ const CARDS: CardConfig[] = [
   { label: 'BOUNCE RATE', key: 'bounceRate', format: (v) => formatPercent(v), color: 'var(--red)', invert: true },
   { label: 'DURAÇÃO MÉDIA', key: 'avgSessionDuration', format: formatDuration, color: 'var(--blue)' },
   { label: 'LEADS', key: 'leads', format: formatNumber, color: 'var(--accent)' },
+  { label: 'CONTRATOS', key: 'contracts', format: formatNumber, color: 'var(--teal)' },
+  { label: 'RECEITA', key: 'revenue', format: formatCurrency, color: 'var(--amber)' },
 ];
 
 export default function KPICards({ data, previous }: KPICardsProps) {
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
       {CARDS.map((card, i) => (
         <div
           key={card.key}

@@ -9,6 +9,7 @@ export interface KPIs {
   pageViews: number;
   leads: number;
   contracts: number;
+  revenue: number;
   convRateLead: number;
   convRateContract: number;
 }
