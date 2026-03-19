@@ -587,9 +587,15 @@ export async function queryFunnel(
     )
     .bind(startDate, endDate);
 
+  // Use keyEvents (sessions_with_event) when available, fallback to eventCount
+  // for events not marked as key events in GA4
   const eventsQuery = db
     .prepare(
-      `SELECT event_name, SUM(sessions_with_event) AS total
+      `SELECT event_name,
+        CASE WHEN SUM(sessions_with_event) > 0
+          THEN SUM(sessions_with_event)
+          ELSE SUM(event_count)
+        END AS total
       FROM ga4_daily_conversions
       WHERE date_ref >= ? AND date_ref <= ?
         AND event_name IN ('generate_lead', 'click_whatsapp', 'add_to_cart', 'begin_checkout', 'add_payment_info', 'purchase')
