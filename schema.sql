@@ -100,6 +100,16 @@ CREATE TABLE IF NOT EXISTS funnel_page_blocklist (
   blocked_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- GA4 Onboarding Steps (onboarding_step events by step_number)
+CREATE TABLE IF NOT EXISTS ga4_onboarding_steps (
+  date_ref TEXT NOT NULL,
+  step_number INTEGER NOT NULL,
+  step_name TEXT NOT NULL DEFAULT '',
+  event_count INTEGER NOT NULL DEFAULT 0,
+  users INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (date_ref, step_number)
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_sessions_date ON ga4_sessions(date_ref);
 CREATE INDEX IF NOT EXISTS idx_conversions_date ON ga4_conversions(date_ref);
@@ -108,3 +118,4 @@ CREATE INDEX IF NOT EXISTS idx_pages_date ON ga4_pages(date_ref);
 CREATE INDEX IF NOT EXISTS idx_page_conversions_date ON ga4_page_conversions(date_ref);
 CREATE INDEX IF NOT EXISTS idx_page_conversions_page ON ga4_page_conversions(page_path);
 CREATE INDEX IF NOT EXISTS idx_insights_created ON ai_insights(created_at);
+CREATE INDEX IF NOT EXISTS idx_onboarding_date ON ga4_onboarding_steps(date_ref);

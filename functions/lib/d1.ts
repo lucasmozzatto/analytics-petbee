@@ -1,4 +1,4 @@
-import type { SessionRow, ConversionRow, PageRow, PageConversionRow, DailyTotalRow, DailyConversionRow } from './ga4-api';
+import type { SessionRow, ConversionRow, PageRow, PageConversionRow, DailyTotalRow, DailyConversionRow, OnboardingStepRow } from './ga4-api';
 
 // ── Sync Helpers ──
 
@@ -1044,6 +1044,107 @@ export async function queryPageFunnel(
   }
 
   return { steps, stepConversions };
+}
+
+// ── Onboarding Steps Sync & Query ──
+
+/**
+ * Upserts onboarding step rows into ga4_onboarding_steps.
+ * Batches in chunks of 100.
+ */
+export async function syncOnboardingSteps(db: D1Database, rows: OnboardingStepRow[]): Promise<number> {
+  if (rows.length === 0) return 0;
+
+  const sql = `
+    INSERT INTO ga4_onboarding_steps (
+      date_ref, step_number, step_name, event_count, users
+    ) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT (date_ref, step_number)
+    DO UPDATE SET
+      step_name = excluded.step_name,
+      event_count = excluded.event_count,
+      users = excluded.users
+  `;
+
+  const chunks = chunkArray(rows, 100);
+  for (const chunk of chunks) {
+    const stmts = chunk.map((r) =>
+      db.prepare(sql).bind(
+        r.date,
+        r.stepNumber,
+        r.stepName,
+        r.eventCount,
+        r.users
+      )
+    );
+    await db.batch(stmts);
+  }
+
+  return rows.length;
+}
+
+export interface OnboardingFunnelStep {
+  stepNumber: number;
+  stepName: string;
+  users: number;
+  eventCount: number;
+  rate: number;
+  stepRate: number;
+}
+
+export interface OnboardingFunnelData {
+  steps: OnboardingFunnelStep[];
+  totalStep1Users: number;
+}
+
+/**
+ * Returns onboarding funnel data aggregated by step_number for the given date range.
+ * rate = users / step1Users * 100
+ * stepRate = users / prevStepUsers * 100
+ */
+export async function queryOnboardingFunnel(
+  db: D1Database,
+  startDate: string,
+  endDate: string
+): Promise<OnboardingFunnelData> {
+  const result = await db
+    .prepare(
+      `SELECT
+        step_number,
+        step_name,
+        SUM(event_count) AS event_count,
+        SUM(users) AS users
+      FROM ga4_onboarding_steps
+      WHERE date_ref >= ? AND date_ref <= ?
+      GROUP BY step_number
+      ORDER BY step_number ASC`
+    )
+    .bind(startDate, endDate)
+    .all();
+
+  const rawSteps = (result.results as Record<string, unknown>[]).map((row) => ({
+    stepNumber: (row.step_number as number) ?? 0,
+    stepName: (row.step_name as string) ?? '',
+    eventCount: (row.event_count as number) ?? 0,
+    users: (row.users as number) ?? 0,
+  }));
+
+  const totalStep1Users = rawSteps.length > 0 ? rawSteps[0].users : 0;
+
+  const steps: OnboardingFunnelStep[] = rawSteps.map((step, i) => ({
+    stepNumber: step.stepNumber,
+    stepName: step.stepName,
+    users: step.users,
+    eventCount: step.eventCount,
+    rate: totalStep1Users > 0 ? (step.users / totalStep1Users) * 100 : 0,
+    stepRate: i === 0
+      ? 100
+      : rawSteps[i - 1].users > 0
+        ? (step.users / rawSteps[i - 1].users) * 100
+        : 0,
+  }));
+
+  return { steps, totalStep1Users };
 }
 
 // ── Internal Helpers ──

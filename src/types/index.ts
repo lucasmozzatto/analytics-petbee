@@ -105,6 +105,26 @@ export interface InsightFull extends InsightSummary {
   analysis: string;
 }
 
+/* ===== Onboarding ===== */
+
+export interface OnboardingStep {
+  stepNumber: number;
+  stepName: string;
+  users: number;
+  eventCount: number;
+  rate: number;
+  stepRate: number;
+}
+
+export interface OnboardingFunnelData {
+  steps: OnboardingStep[];
+  totalStep1Users: number;
+  previous?: {
+    steps: OnboardingStep[];
+    totalStep1Users: number;
+  };
+}
+
 /* ===== API Responses ===== */
 
 export interface TopChannel {

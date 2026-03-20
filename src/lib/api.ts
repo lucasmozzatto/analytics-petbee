@@ -8,6 +8,7 @@ import type {
   PageRow,
   InsightFull,
   InsightSummary,
+  OnboardingFunnelData,
 } from '../types';
 
 /**
@@ -135,6 +136,20 @@ export function getPaginas(
   });
   return fetchAPI<{ data: PageRow[]; total: number }>(
     `/api/metrics/paginas?${params.toString()}`
+  );
+}
+
+/**
+ * GET /api/metrics/onboarding
+ * Returns onboarding funnel steps and optionally previous period data.
+ */
+export function getOnboarding(
+  startDate: string,
+  endDate: string,
+  compare?: boolean
+): Promise<OnboardingFunnelData> {
+  return fetchAPI<OnboardingFunnelData>(
+    `/api/metrics/onboarding?${dateParams(startDate, endDate, compare)}`
   );
 }
 

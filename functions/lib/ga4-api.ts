@@ -213,9 +213,12 @@ export interface ConversionRow {
 export const CONVERSION_EVENTS = [
   'generate_lead',
   'click_whatsapp',
+  'complete_registration',
   'add_to_cart',
   'begin_checkout',
   'add_payment_info',
+  'apply_coupon',
+  'remove_from_cart',
   'purchase',
 ];
 
@@ -469,4 +472,73 @@ export async function fetchPageConversions(
     eventCount: parseInt(row.metricValues[0].value, 10) || 0,
     eventValue: parseFloat(row.metricValues[1].value) || 0,
   }));
+}
+
+// ── Onboarding Steps Fetcher ──
+
+export interface OnboardingStepRow {
+  date: string;
+  stepNumber: number;
+  stepName: string;
+  eventCount: number;
+  users: number;
+}
+
+/**
+ * Fetches onboarding_step events from GA4, filtered to direction=forward only.
+ * Uses custom event-scoped dimensions: customEvent:step_number, customEvent:step_name.
+ */
+export async function fetchOnboardingSteps(
+  env: Env,
+  startDate: string,
+  endDate: string
+): Promise<OnboardingStepRow[]> {
+  const response = await runReport(env, {
+    dateRanges: [{ startDate, endDate }],
+    dimensions: [
+      { name: 'date' },
+      { name: 'customEvent:step_number' },
+      { name: 'customEvent:step_name' },
+    ],
+    metrics: [
+      { name: 'eventCount' },
+      { name: 'totalUsers' },
+    ],
+    dimensionFilter: {
+      andGroup: {
+        expressions: [
+          {
+            filter: {
+              fieldName: 'eventName',
+              stringFilter: {
+                matchType: 'EXACT',
+                value: 'onboarding_step',
+              },
+            },
+          },
+          {
+            filter: {
+              fieldName: 'customEvent:direction',
+              stringFilter: {
+                matchType: 'EXACT',
+                value: 'forward',
+              },
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  if (!response.rows) return [];
+
+  return response.rows
+    .filter((row) => row.dimensionValues[1].value && row.dimensionValues[1].value !== '(not set)')
+    .map((row) => ({
+      date: formatGA4Date(row.dimensionValues[0].value),
+      stepNumber: parseInt(row.dimensionValues[1].value, 10) || 0,
+      stepName: row.dimensionValues[2].value || '',
+      eventCount: parseInt(row.metricValues[0].value, 10) || 0,
+      users: parseInt(row.metricValues[1].value, 10) || 0,
+    }));
 }

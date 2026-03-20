@@ -5,6 +5,7 @@ const NAV_ITEMS = [
   { to: '/trafego', icon: '⇅', label: 'Tráfego' },
   { to: '/utms', icon: '#', label: 'UTMs' },
   { to: '/funil', icon: '▽', label: 'Funil' },
+  { to: '/onboarding', icon: '◇', label: 'Onboarding' },
   { to: '/paginas', icon: '≡', label: 'Páginas' },
 ];
 

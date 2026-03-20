@@ -1,6 +1,6 @@
 import type { Env } from './functions/lib/types';
 import { getAccessToken } from './functions/lib/google-auth';
-import { fetchSessions, fetchConversions, fetchPages, fetchPageConversions, fetchDailyTotals, fetchDailyConversions } from './functions/lib/ga4-api';
+import { fetchSessions, fetchConversions, fetchPages, fetchPageConversions, fetchDailyTotals, fetchDailyConversions, fetchOnboardingSteps } from './functions/lib/ga4-api';
 import { todaySP, yesterdaySP, getPreviousPeriod } from './functions/lib/date-utils';
 import {
   syncSessions,
@@ -9,6 +9,7 @@ import {
   syncPageConversions,
   syncDailyTotals,
   syncDailyConversions,
+  syncOnboardingSteps,
   queryKPIs,
   queryTimeseries,
   queryByChannel,
@@ -23,6 +24,7 @@ import {
   queryInsightHistory,
   queryInsight,
   saveInsight,
+  queryOnboardingFunnel,
 } from './functions/lib/d1';
 
 import type {
@@ -222,6 +224,32 @@ export default {
           result.previous = {
             steps: previousFunnel.steps,
             stepConversions: previousFunnel.stepConversions,
+          };
+        }
+
+        return jsonResponse(result);
+      }
+
+      // ────────────────────────────────────────────────
+      // GET /api/metrics/onboarding
+      // ────────────────────────────────────────────────
+      if (pathname === '/api/metrics/onboarding' && method === 'GET') {
+        const { startDate, endDate } = getDateParams(url);
+        const compare = url.searchParams.get('compare') === 'true';
+
+        const data = await queryOnboardingFunnel(env.DB, startDate, endDate);
+
+        const result: Record<string, unknown> = {
+          steps: data.steps,
+          totalStep1Users: data.totalStep1Users,
+        };
+
+        if (compare) {
+          const prev = getPreviousPeriod(startDate, endDate);
+          const previousData = await queryOnboardingFunnel(env.DB, prev.startDate, prev.endDate);
+          result.previous = {
+            steps: previousData.steps,
+            totalStep1Users: previousData.totalStep1Users,
           };
         }
 
@@ -594,23 +622,25 @@ Variação vs período anterior:
         const accessToken = await getAccessToken(env);
 
         // Fetch all data from GA4 in parallel
-        const [sessions, conversions, pages, pageConversions, dailyTotals, dailyConversions] = await Promise.all([
+        const [sessions, conversions, pages, pageConversions, dailyTotals, dailyConversions, onboardingSteps] = await Promise.all([
           fetchSessions(env, startDate, endDate),
           fetchConversions(env, startDate, endDate),
           fetchPages(env, startDate, endDate),
           fetchPageConversions(env, startDate, endDate),
           fetchDailyTotals(env, startDate, endDate),
           fetchDailyConversions(env, startDate, endDate),
+          fetchOnboardingSteps(env, startDate, endDate),
         ]);
 
         // Sync all to D1
-        const [syncedSessions, syncedConversions, syncedPages, syncedPageConversions, syncedDailyTotals, syncedDailyConversions] = await Promise.all([
+        const [syncedSessions, syncedConversions, syncedPages, syncedPageConversions, syncedDailyTotals, syncedDailyConversions, syncedOnboardingSteps] = await Promise.all([
           syncSessions(env.DB, sessions),
           syncConversions(env.DB, conversions),
           syncPages(env.DB, pages),
           syncPageConversions(env.DB, pageConversions),
           syncDailyTotals(env.DB, dailyTotals),
           syncDailyConversions(env.DB, dailyConversions),
+          syncOnboardingSteps(env.DB, onboardingSteps),
         ]);
 
         return jsonResponse({
@@ -622,6 +652,7 @@ Variação vs período anterior:
             pageConversions: syncedPageConversions,
             dailyTotals: syncedDailyTotals,
             dailyConversions: syncedDailyConversions,
+            onboardingSteps: syncedOnboardingSteps,
           },
           dateRange: { startDate, endDate },
         });
