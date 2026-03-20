@@ -86,7 +86,7 @@ Disparadas nos marcos de scroll 25%, 50%, 75% e 90% (vertical):
 
 | Step | Route                         | Eventos disparados                                                                                         |
 | ---- | ----------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| 1    | `account`                     | `onboarding_step_view`, pageview tags                                                                      |
+| 1    | `account`                     | `onboarding_step`, `onboarding_step_view`, pageview tags _(TODO: adicionar disparo de `onboarding_step` no GTM)_ |
 | 5    | `customer`                    | `onboarding_step`                                                                                          |
 | 6    | `pet-name`                    | `onboarding_step`                                                                                          |
 | 7    | `pet-family`                  | `onboarding_step`                                                                                          |
@@ -120,5 +120,7 @@ Disparadas nos marcos de scroll 25%, 50%, 75% e 90% (vertical):
 ## Notas
 
 - O `userData` com dados hasheados em SHA-256 passa a ser enviado nos eventos a partir do Step 20, após o usuário estar autenticado.
-- Steps 2, 3 e 4 (`email`, `verify`, `continue`) pertencem ao fluxo de usuários **com conta existente** (Step 1 → "Sim") — documentar separadamente.
+- Steps 2, 3 e 4 (`email`, `verify`, `continue`) pertencem ao fluxo de usuários **com conta existente** (Step 1 → "Sim").
+- Fluxo novo cliente: 1 → 5 → 6 → 7 → 8 → 9 → 10 → 13 → 14 → 15 → 16 → 17 → 18 → 19 → 20
+- Fluxo cliente existente (novo pet): 1 → 2 → 3 → 4 → 6 → 7 → 9 → 10 → 13 → 14 → 15 → 16 → 19 → 20
 - O evento `purchase` ocorre fora do onboarding na página `/orders/{order-id}` — documentar separadamente.
