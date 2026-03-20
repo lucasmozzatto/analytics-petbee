@@ -188,7 +188,11 @@ export default function Funil() {
 
       {data && !loading && (
         <>
-          <FunnelChart steps={data.steps} stepConversions={data.stepConversions} />
+          <FunnelChart
+            steps={data.steps}
+            stepConversions={data.stepConversions}
+            conversionTarget={selectedDomain === 'lp.petbee.com.br' ? 'Leads' : undefined}
+          />
 
           {/* Drop-off table */}
           {data.stepConversions.length > 0 && (

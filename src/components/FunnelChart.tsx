@@ -4,6 +4,7 @@ import { formatNumber, formatPercent } from '../lib/format';
 interface FunnelChartProps {
   steps: FunnelStep[];
   stepConversions: StepConversion[];
+  conversionTarget?: string;
 }
 
 const STEP_COLORS = [
@@ -15,14 +16,16 @@ const STEP_COLORS = [
   'var(--orange)',
 ];
 
-export default function FunnelChart({ steps, stepConversions }: FunnelChartProps) {
+export default function FunnelChart({ steps, stepConversions, conversionTarget }: FunnelChartProps) {
   const maxCount = Math.max(...steps.map((s) => s.count), 1);
   const totalSteps = steps.length;
 
   const firstStep = steps[0];
-  const lastStep = steps.length > 1 ? steps[steps.length - 1] : null;
-  const overallRate = firstStep && lastStep && firstStep.count > 0
-    ? (lastStep.count / firstStep.count) * 100
+  const targetStep = conversionTarget
+    ? steps.find((s) => s.name === conversionTarget) ?? (steps.length > 1 ? steps[steps.length - 1] : null)
+    : (steps.length > 1 ? steps[steps.length - 1] : null);
+  const overallRate = firstStep && targetStep && firstStep.count > 0
+    ? (targetStep.count / firstStep.count) * 100
     : 0;
 
   // Find biggest drop
@@ -57,13 +60,13 @@ export default function FunnelChart({ steps, stepConversions }: FunnelChartProps
           </div>
           <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--surface-alt)' }}>
             <div className="text-[10px] font-medium tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>
-              SAÍDA
+              {conversionTarget ? conversionTarget.toUpperCase() : 'SAÍDA'}
             </div>
             <div className="text-xl font-bold" style={{ fontFamily: 'var(--mono)', color: 'var(--teal)' }}>
-              {lastStep ? formatNumber(lastStep.count) : '—'}
+              {targetStep ? formatNumber(targetStep.count) : '—'}
             </div>
             <div className="text-[10px] mt-0.5" style={{ fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>
-              {lastStep?.name ?? '—'}
+              {targetStep?.name ?? '—'}
             </div>
           </div>
           <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--surface-alt)' }}>
@@ -74,7 +77,7 @@ export default function FunnelChart({ steps, stepConversions }: FunnelChartProps
               {formatPercent(overallRate, 2)}
             </div>
             <div className="text-[10px] mt-0.5" style={{ fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>
-              {firstStep.name} → {lastStep?.name ?? '—'}
+              {firstStep.name} → {targetStep?.name ?? '—'}
             </div>
           </div>
           <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--surface-alt)' }}>
