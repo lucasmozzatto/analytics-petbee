@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTimeWindow } from '../hooks/useGA4Data';
-import { getFunil } from '../lib/api';
+import { getFunil, getFunilPages } from '../lib/api';
 import type { FunnelData } from '../types';
 import TimeWindowPicker from '../components/TimeWindowPicker';
 import CompareToggle from '../components/CompareToggle';
@@ -17,15 +17,47 @@ export default function Funil() {
   const { window, setWindow, startDate, endDate, compare, setCompare } = useTimeWindow();
   const [data, setData] = useState<FunnelData | null>(null);
   const [selectedDomain, setSelectedDomain] = useState<string>('');
+  const [pages, setPages] = useState<string[]>([]);
+  const [selectedPage, setSelectedPage] = useState<string>('');
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
+  // Load pages when domain is selected
+  useEffect(() => {
+    if (!selectedDomain) {
+      setPages([]);
+      setSelectedPage('');
+      return;
+    }
+    getFunilPages(startDate, endDate, selectedDomain)
+      .then((res) => setPages(res.pages))
+      .catch(console.error);
+  }, [startDate, endDate, selectedDomain]);
+
+  // Reset selected page when domain changes
+  useEffect(() => {
+    setSelectedPage('');
+    setSearch('');
+  }, [selectedDomain]);
+
+  // Load funnel data
   useEffect(() => {
     setLoading(true);
-    getFunil(startDate, endDate, compare, undefined, selectedDomain || undefined)
+    getFunil(
+      startDate,
+      endDate,
+      compare,
+      selectedPage || undefined,
+      selectedDomain || undefined
+    )
       .then(setData)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [startDate, endDate, compare, selectedDomain]);
+  }, [startDate, endDate, compare, selectedDomain, selectedPage]);
+
+  const filteredPages = search
+    ? pages.filter((p) => p.toLowerCase().includes(search.toLowerCase()))
+    : pages;
 
   return (
     <div className="space-y-6">
@@ -66,6 +98,89 @@ export default function Funil() {
           </button>
         ))}
       </div>
+
+      {/* Page selector — visible when a domain is selected */}
+      {selectedDomain && pages.length > 0 && (
+        <div
+          className="rounded-xl p-4 space-y-3"
+          style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold tracking-wider" style={{ color: 'var(--text-muted)' }}>
+              FILTRAR POR PÁGINA
+            </h3>
+            {selectedPage && (
+              <button
+                onClick={() => setSelectedPage('')}
+                className="text-xs px-2 py-1 rounded cursor-pointer transition-colors"
+                style={{
+                  color: 'var(--accent)',
+                  backgroundColor: 'var(--accent-dim)',
+                  fontFamily: 'var(--mono)',
+                }}
+              >
+                Limpar filtro
+              </button>
+            )}
+          </div>
+
+          {pages.length > 5 && (
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar página..."
+              className="w-full rounded-lg px-3 py-2 text-sm"
+              style={{
+                backgroundColor: 'var(--surface-alt)',
+                border: '1px solid var(--border)',
+                color: 'var(--text)',
+                fontFamily: 'var(--mono)',
+                fontSize: '12px',
+              }}
+            />
+          )}
+
+          <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+            <button
+              onClick={() => setSelectedPage('')}
+              className="px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer"
+              style={{
+                fontFamily: 'var(--mono)',
+                fontSize: '11px',
+                backgroundColor: !selectedPage ? 'var(--accent-dim)' : 'transparent',
+                border: !selectedPage ? '1px solid var(--accent)' : '1px solid var(--border)',
+                color: !selectedPage ? 'var(--accent)' : 'var(--text-muted)',
+              }}
+            >
+              Todas
+            </button>
+            {filteredPages.map((page) => (
+              <button
+                key={page}
+                onClick={() => setSelectedPage(page)}
+                className="px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer truncate max-w-[300px]"
+                title={page}
+                style={{
+                  fontFamily: 'var(--mono)',
+                  fontSize: '11px',
+                  backgroundColor: selectedPage === page ? 'var(--accent-dim)' : 'transparent',
+                  border: selectedPage === page ? '1px solid var(--accent)' : '1px solid var(--border)',
+                  color: selectedPage === page ? 'var(--accent)' : 'var(--text-muted)',
+                }}
+              >
+                {page}
+              </button>
+            ))}
+          </div>
+
+          {selectedPage && (
+            <div className="text-xs" style={{ color: 'var(--text-dim)', fontFamily: 'var(--mono)' }}>
+              Filtrando: {selectedPage}
+            </div>
+          )}
+        </div>
+      )}
 
       {loading && (
         <div className="text-sm" style={{ color: 'var(--text-muted)' }}>Carregando...</div>

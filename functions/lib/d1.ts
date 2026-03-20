@@ -880,17 +880,25 @@ export async function syncPageConversions(db: D1Database, rows: PageConversionRo
 export async function queryFunnelPages(
   db: D1Database,
   startDate: string,
-  endDate: string
+  endDate: string,
+  hostname?: string
 ): Promise<string[]> {
+  const where = ['date_ref >= ?', 'date_ref <= ?', 'page_path NOT IN (SELECT page_path FROM funnel_page_blocklist)'];
+  const binds: string[] = [startDate, endDate];
+
+  if (hostname) {
+    where.push('hostname = ?');
+    binds.push(hostname);
+  }
+
   const result = await db
     .prepare(
       `SELECT DISTINCT page_path
       FROM ga4_page_conversions
-      WHERE date_ref >= ? AND date_ref <= ?
-        AND page_path NOT IN (SELECT page_path FROM funnel_page_blocklist)
+      WHERE ${where.join(' AND ')}
       ORDER BY page_path`
     )
-    .bind(startDate, endDate)
+    .bind(...binds)
     .all();
 
   return (result.results as Record<string, unknown>[]).map(

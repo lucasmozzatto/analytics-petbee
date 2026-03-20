@@ -232,7 +232,13 @@ export default {
       // ────────────────────────────────────────────────
       if (pathname === "/api/metrics/funil/pages" && method === "GET") {
         const { startDate, endDate } = getDateParams(url);
-        const pages = await queryFunnelPages(env.DB, startDate, endDate);
+        const hostname = url.searchParams.get("hostname") ?? undefined;
+        const pages = await queryFunnelPages(
+          env.DB,
+          startDate,
+          endDate,
+          hostname,
+        );
         return jsonResponse({ pages });
       }
 

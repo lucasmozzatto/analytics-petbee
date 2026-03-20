@@ -114,9 +114,11 @@ export function getFunil(
  */
 export function getFunilPages(
   startDate: string,
-  endDate: string
+  endDate: string,
+  hostname?: string
 ): Promise<{ pages: string[] }> {
   const params = new URLSearchParams({ startDate, endDate });
+  if (hostname) params.set('hostname', hostname);
   return fetchAPI<{ pages: string[] }>(`/api/metrics/funil/pages?${params.toString()}`);
 }
 
