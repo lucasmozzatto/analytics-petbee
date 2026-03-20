@@ -1,53 +1,38 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useTimeWindow } from '../hooks/useGA4Data';
-import { getFunil, getFunilPages } from '../lib/api';
+import { getFunil } from '../lib/api';
 import type { FunnelData } from '../types';
 import TimeWindowPicker from '../components/TimeWindowPicker';
 import CompareToggle from '../components/CompareToggle';
 import FunnelChart from '../components/FunnelChart';
-import FunnelBlocklistModal from '../components/FunnelBlocklistModal';
 import { formatNumber, formatPercent } from '../lib/format';
+
+const DOMAIN_TABS = [
+  { value: '', label: 'Todas', subtitle: null },
+  { value: 'lp.petbee.com.br', label: 'Landing Pages', subtitle: 'lp.petbee.com.br' },
+  { value: 'petbee.com.br', label: 'Website', subtitle: 'petbee.com.br' },
+] as const;
 
 export default function Funil() {
   const { window, setWindow, startDate, endDate, compare, setCompare } = useTimeWindow();
   const [data, setData] = useState<FunnelData | null>(null);
-  const [pages, setPages] = useState<string[]>([]);
-  const [selectedPage, setSelectedPage] = useState<string>('');
+  const [selectedDomain, setSelectedDomain] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [blocklistOpen, setBlocklistOpen] = useState(false);
-  const [pageRefreshKey, setPageRefreshKey] = useState(0);
 
-  const handleBlocklistSaved = useCallback(() => {
-    setPageRefreshKey((k) => k + 1);
-  }, []);
-
-  // Load available pages
-  useEffect(() => {
-    getFunilPages(startDate, endDate)
-      .then((res) => setPages(res.pages))
-      .catch(console.error);
-  }, [startDate, endDate, pageRefreshKey]);
-
-  // Load funnel data
   useEffect(() => {
     setLoading(true);
-    getFunil(startDate, endDate, compare, selectedPage || undefined)
+    getFunil(startDate, endDate, compare, undefined, selectedDomain || undefined)
       .then(setData)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [startDate, endDate, compare, selectedPage]);
-
-  const filteredPages = search
-    ? pages.filter((p) => p.toLowerCase().includes(search.toLowerCase()))
-    : pages;
+  }, [startDate, endDate, compare, selectedDomain]);
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Funil</h1>
         <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-          Funil de conversão por página
+          Jornada do visitante no site e landing pages
         </p>
       </div>
 
@@ -56,93 +41,30 @@ export default function Funil() {
         <CompareToggle enabled={compare} onChange={setCompare} />
       </div>
 
-      {/* Page selector */}
-      <div
-        className="rounded-xl p-4 space-y-3"
-        style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h3 className="text-xs font-semibold tracking-wider" style={{ color: 'var(--text-muted)' }}>
-              FILTRAR POR PÁGINA
-            </h3>
-            <button
-              onClick={() => setBlocklistOpen(true)}
-              className="text-sm cursor-pointer transition-opacity hover:opacity-80"
-              style={{ color: 'var(--text-muted)' }}
-              title="Configurar visibilidade de páginas"
-            >
-              &#9881;
-            </button>
-          </div>
-          {selectedPage && (
-            <button
-              onClick={() => setSelectedPage('')}
-              className="text-xs px-2 py-1 rounded cursor-pointer transition-colors"
-              style={{
-                color: 'var(--accent)',
-                backgroundColor: 'var(--accent-dim)',
-                fontFamily: 'var(--mono)',
-              }}
-            >
-              Limpar filtro
-            </button>
-          )}
-        </div>
-
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar página..."
-          className="w-full rounded-lg px-3 py-2 text-sm"
-          style={{
-            backgroundColor: 'var(--surface-alt)',
-            border: '1px solid var(--border)',
-            color: 'var(--text)',
-            fontFamily: 'var(--mono)',
-            fontSize: '12px',
-          }}
-        />
-
-        <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+      {/* Domain tabs */}
+      <div className="flex items-center gap-2">
+        {DOMAIN_TABS.map((tab) => (
           <button
-            onClick={() => setSelectedPage('')}
-            className="px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer"
+            key={tab.value}
+            onClick={() => setSelectedDomain(tab.value)}
+            className="px-4 py-2 rounded-lg text-sm transition-colors cursor-pointer"
             style={{
-              fontFamily: 'var(--mono)',
-              fontSize: '11px',
-              backgroundColor: !selectedPage ? 'var(--accent-dim)' : 'transparent',
-              border: !selectedPage ? '1px solid var(--accent)' : '1px solid var(--border)',
-              color: !selectedPage ? 'var(--accent)' : 'var(--text-muted)',
+              backgroundColor: selectedDomain === tab.value ? 'var(--accent-dim)' : 'transparent',
+              border: selectedDomain === tab.value ? '1px solid var(--accent)' : '1px solid var(--border)',
+              color: selectedDomain === tab.value ? 'var(--accent)' : 'var(--text-muted)',
             }}
           >
-            Todas
+            <span>{tab.label}</span>
+            {tab.subtitle && (
+              <span
+                className="block text-[10px] mt-0.5"
+                style={{ fontFamily: 'var(--mono)', opacity: 0.7 }}
+              >
+                {tab.subtitle}
+              </span>
+            )}
           </button>
-          {filteredPages.map((page) => (
-            <button
-              key={page}
-              onClick={() => setSelectedPage(page)}
-              className="px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer truncate max-w-[300px]"
-              title={page}
-              style={{
-                fontFamily: 'var(--mono)',
-                fontSize: '11px',
-                backgroundColor: selectedPage === page ? 'var(--accent-dim)' : 'transparent',
-                border: selectedPage === page ? '1px solid var(--accent)' : '1px solid var(--border)',
-                color: selectedPage === page ? 'var(--accent)' : 'var(--text-muted)',
-              }}
-            >
-              {page}
-            </button>
-          ))}
-        </div>
-
-        {selectedPage && (
-          <div className="text-xs" style={{ color: 'var(--text-dim)', fontFamily: 'var(--mono)' }}>
-            Filtrando: {selectedPage}
-          </div>
-        )}
+        ))}
       </div>
 
       {loading && (
@@ -211,12 +133,6 @@ export default function Funil() {
           )}
         </>
       )}
-
-      <FunnelBlocklistModal
-        open={blocklistOpen}
-        onClose={() => setBlocklistOpen(false)}
-        onSaved={handleBlocklistSaved}
-      />
     </div>
   );
 }

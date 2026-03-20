@@ -98,11 +98,13 @@ export function getFunil(
   startDate: string,
   endDate: string,
   compare?: boolean,
-  page?: string
+  page?: string,
+  hostname?: string
 ): Promise<FunnelData> {
   const params = new URLSearchParams({ startDate, endDate });
   if (compare) params.set('compare', 'true');
   if (page) params.set('page', page);
+  if (hostname) params.set('hostname', hostname);
   return fetchAPI<FunnelData>(`/api/metrics/funil?${params.toString()}`);
 }
 

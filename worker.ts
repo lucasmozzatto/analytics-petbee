@@ -1,7 +1,19 @@
-import type { Env } from './functions/lib/types';
-import { getAccessToken } from './functions/lib/google-auth';
-import { fetchSessions, fetchConversions, fetchPages, fetchPageConversions, fetchDailyTotals, fetchDailyConversions, fetchOnboardingSteps } from './functions/lib/ga4-api';
-import { todaySP, yesterdaySP, getPreviousPeriod } from './functions/lib/date-utils';
+import type { Env } from "./functions/lib/types";
+import { getAccessToken } from "./functions/lib/google-auth";
+import {
+  fetchSessions,
+  fetchConversions,
+  fetchPages,
+  fetchPageConversions,
+  fetchDailyTotals,
+  fetchDailyConversions,
+  fetchOnboardingSteps,
+} from "./functions/lib/ga4-api";
+import {
+  todaySP,
+  yesterdaySP,
+  getPreviousPeriod,
+} from "./functions/lib/date-utils";
 import {
   syncSessions,
   syncConversions,
@@ -25,7 +37,7 @@ import {
   queryInsight,
   saveInsight,
   queryOnboardingFunnel,
-} from './functions/lib/d1';
+} from "./functions/lib/d1";
 
 import type {
   KPIs,
@@ -33,21 +45,21 @@ import type {
   UTMDimensionRow,
   FunnelData,
   PageDataRow,
-} from './functions/lib/d1';
+} from "./functions/lib/d1";
 
 // ── CORS Headers ──
 
 const CORS_HEADERS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
 function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...CORS_HEADERS,
     },
   });
@@ -60,32 +72,34 @@ function errorResponse(message: string, status = 500): Response {
 // ── Helpers ──
 
 function getDateParams(url: URL): { startDate: string; endDate: string } {
-  const startDate = url.searchParams.get('startDate') ?? yesterdaySP();
-  const endDate = url.searchParams.get('endDate') ?? todaySP();
+  const startDate = url.searchParams.get("startDate") ?? yesterdaySP();
+  const endDate = url.searchParams.get("endDate") ?? todaySP();
   return { startDate, endDate };
 }
 
 function daysBetween(startDate: string, endDate: string): number {
   const start = new Date(startDate);
   const end = new Date(endDate);
-  return Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  return (
+    Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+  );
 }
 
 function pctVar(current: number, previous: number): string {
-  if (previous === 0) return current > 0 ? '+100%' : '0%';
+  if (previous === 0) return current > 0 ? "+100%" : "0%";
   const change = ((current - previous) / previous) * 100;
-  const sign = change >= 0 ? '+' : '';
+  const sign = change >= 0 ? "+" : "";
   return `${sign}${change.toFixed(1)}%`;
 }
 
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
-  return `${m}m ${s.toString().padStart(2, '0')}s`;
+  return `${m}m ${s.toString().padStart(2, "0")}s`;
 }
 
 function formatPercent(value: number): string {
-  return value.toFixed(2) + '%';
+  return value.toFixed(2) + "%";
 }
 
 // ── Route Handler ──
@@ -97,22 +111,22 @@ export default {
     const method = request.method;
 
     // Handle CORS preflight
-    if (method === 'OPTIONS') {
+    if (method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
 
     // Only handle /api/* routes
-    if (!pathname.startsWith('/api/')) {
-      return jsonResponse({ error: 'Not found' }, 404);
+    if (!pathname.startsWith("/api/")) {
+      return jsonResponse({ error: "Not found" }, 404);
     }
 
     try {
       // ────────────────────────────────────────────────
       // GET /api/metrics/visao-geral
       // ────────────────────────────────────────────────
-      if (pathname === '/api/metrics/visao-geral' && method === 'GET') {
+      if (pathname === "/api/metrics/visao-geral" && method === "GET") {
         const { startDate, endDate } = getDateParams(url);
-        const compare = url.searchParams.get('compare') === 'true';
+        const compare = url.searchParams.get("compare") === "true";
 
         const [kpis, timeseries, byChannel] = await Promise.all([
           queryKPIs(env.DB, startDate, endDate),
@@ -125,7 +139,8 @@ export default {
         const topChannels = byChannel.slice(0, 4).map((ch) => ({
           channel: ch.channel,
           sessions: ch.sessions,
-          percentage: totalSessions > 0 ? (ch.sessions / totalSessions) * 100 : 0,
+          percentage:
+            totalSessions > 0 ? (ch.sessions / totalSessions) * 100 : 0,
         }));
 
         const result: Record<string, unknown> = {
@@ -136,7 +151,11 @@ export default {
 
         if (compare) {
           const prev = getPreviousPeriod(startDate, endDate);
-          const previousKPIs = await queryKPIs(env.DB, prev.startDate, prev.endDate);
+          const previousKPIs = await queryKPIs(
+            env.DB,
+            prev.startDate,
+            prev.endDate,
+          );
           result.previous = { kpis: previousKPIs };
         }
 
@@ -146,9 +165,9 @@ export default {
       // ────────────────────────────────────────────────
       // GET /api/metrics/trafego
       // ────────────────────────────────────────────────
-      if (pathname === '/api/metrics/trafego' && method === 'GET') {
+      if (pathname === "/api/metrics/trafego" && method === "GET") {
         const { startDate, endDate } = getDateParams(url);
-        const compare = url.searchParams.get('compare') === 'true';
+        const compare = url.searchParams.get("compare") === "true";
 
         const [byChannel, bySourceMedium] = await Promise.all([
           queryByChannel(env.DB, startDate, endDate),
@@ -162,7 +181,11 @@ export default {
 
         if (compare) {
           const prev = getPreviousPeriod(startDate, endDate);
-          const previousByChannel = await queryByChannel(env.DB, prev.startDate, prev.endDate);
+          const previousByChannel = await queryByChannel(
+            env.DB,
+            prev.startDate,
+            prev.endDate,
+          );
           result.previous = { byChannel: previousByChannel };
         }
 
@@ -172,28 +195,42 @@ export default {
       // ────────────────────────────────────────────────
       // GET /api/metrics/utms
       // ────────────────────────────────────────────────
-      if (pathname === '/api/metrics/utms' && method === 'GET') {
+      if (pathname === "/api/metrics/utms" && method === "GET") {
         const { startDate, endDate } = getDateParams(url);
-        const dimension = (url.searchParams.get('dimension') ?? 'campaign') as
-          | 'campaign'
-          | 'source'
-          | 'medium'
-          | 'content'
-          | 'term';
+        const dimension = (url.searchParams.get("dimension") ?? "campaign") as
+          | "campaign"
+          | "source"
+          | "medium"
+          | "content"
+          | "term";
 
-        const validDimensions = ['campaign', 'source', 'medium', 'content', 'term'];
+        const validDimensions = [
+          "campaign",
+          "source",
+          "medium",
+          "content",
+          "term",
+        ];
         if (!validDimensions.includes(dimension)) {
-          return errorResponse('Invalid dimension. Must be one of: campaign, source, medium, content, term', 400);
+          return errorResponse(
+            "Invalid dimension. Must be one of: campaign, source, medium, content, term",
+            400,
+          );
         }
 
-        const data = await queryByUTMDimension(env.DB, startDate, endDate, dimension);
+        const data = await queryByUTMDimension(
+          env.DB,
+          startDate,
+          endDate,
+          dimension,
+        );
         return jsonResponse(data);
       }
 
       // ────────────────────────────────────────────────
       // GET /api/metrics/funil/pages
       // ────────────────────────────────────────────────
-      if (pathname === '/api/metrics/funil/pages' && method === 'GET') {
+      if (pathname === "/api/metrics/funil/pages" && method === "GET") {
         const { startDate, endDate } = getDateParams(url);
         const pages = await queryFunnelPages(env.DB, startDate, endDate);
         return jsonResponse({ pages });
@@ -202,14 +239,19 @@ export default {
       // ────────────────────────────────────────────────
       // GET /api/metrics/funil
       // ────────────────────────────────────────────────
-      if (pathname === '/api/metrics/funil' && method === 'GET') {
+      if (pathname === "/api/metrics/funil" && method === "GET") {
         const { startDate, endDate } = getDateParams(url);
-        const compare = url.searchParams.get('compare') === 'true';
-        const pagePath = url.searchParams.get('page') ?? undefined;
+        const compare = url.searchParams.get("compare") === "true";
+        const pagePath = url.searchParams.get("page") ?? undefined;
+        const hostname = url.searchParams.get("hostname") ?? undefined;
 
-        const funnel = pagePath
-          ? await queryPageFunnel(env.DB, startDate, endDate, pagePath)
-          : await queryFunnel(env.DB, startDate, endDate);
+        const funnel = await queryPageFunnel(
+          env.DB,
+          startDate,
+          endDate,
+          pagePath,
+          hostname,
+        );
 
         const result: Record<string, unknown> = {
           steps: funnel.steps,
@@ -218,9 +260,13 @@ export default {
 
         if (compare) {
           const prev = getPreviousPeriod(startDate, endDate);
-          const previousFunnel = pagePath
-            ? await queryPageFunnel(env.DB, prev.startDate, prev.endDate, pagePath)
-            : await queryFunnel(env.DB, prev.startDate, prev.endDate);
+          const previousFunnel = await queryPageFunnel(
+            env.DB,
+            prev.startDate,
+            prev.endDate,
+            pagePath,
+            hostname,
+          );
           result.previous = {
             steps: previousFunnel.steps,
             stepConversions: previousFunnel.stepConversions,
@@ -233,9 +279,9 @@ export default {
       // ────────────────────────────────────────────────
       // GET /api/metrics/onboarding
       // ────────────────────────────────────────────────
-      if (pathname === '/api/metrics/onboarding' && method === 'GET') {
+      if (pathname === "/api/metrics/onboarding" && method === "GET") {
         const { startDate, endDate } = getDateParams(url);
-        const compare = url.searchParams.get('compare') === 'true';
+        const compare = url.searchParams.get("compare") === "true";
 
         const data = await queryOnboardingFunnel(env.DB, startDate, endDate);
 
@@ -246,7 +292,11 @@ export default {
 
         if (compare) {
           const prev = getPreviousPeriod(startDate, endDate);
-          const previousData = await queryOnboardingFunnel(env.DB, prev.startDate, prev.endDate);
+          const previousData = await queryOnboardingFunnel(
+            env.DB,
+            prev.startDate,
+            prev.endDate,
+          );
           result.previous = {
             steps: previousData.steps,
             totalStep1Users: previousData.totalStep1Users,
@@ -259,19 +309,25 @@ export default {
       // ────────────────────────────────────────────────
       // GET /api/metrics/paginas
       // ────────────────────────────────────────────────
-      if (pathname === '/api/metrics/paginas' && method === 'GET') {
+      if (pathname === "/api/metrics/paginas" && method === "GET") {
         const { startDate, endDate } = getDateParams(url);
-        const page = parseInt(url.searchParams.get('page') ?? '1', 10);
-        const pageSize = parseInt(url.searchParams.get('pageSize') ?? '20', 10);
+        const page = parseInt(url.searchParams.get("page") ?? "1", 10);
+        const pageSize = parseInt(url.searchParams.get("pageSize") ?? "20", 10);
 
-        const result = await queryPages(env.DB, startDate, endDate, page, pageSize);
+        const result = await queryPages(
+          env.DB,
+          startDate,
+          endDate,
+          page,
+          pageSize,
+        );
         return jsonResponse(result);
       }
 
       // ────────────────────────────────────────────────
       // GET /api/insights/history
       // ────────────────────────────────────────────────
-      if (pathname === '/api/insights/history' && method === 'GET') {
+      if (pathname === "/api/insights/history" && method === "GET") {
         const history = await queryInsightHistory(env.DB);
         return jsonResponse(history);
       }
@@ -280,11 +336,11 @@ export default {
       // GET /api/insights/:id
       // ────────────────────────────────────────────────
       const insightMatch = pathname.match(/^\/api\/insights\/(\d+)$/);
-      if (insightMatch && method === 'GET') {
+      if (insightMatch && method === "GET") {
         const id = parseInt(insightMatch[1], 10);
         const insight = await queryInsight(env.DB, id);
         if (!insight) {
-          return errorResponse('Insight not found', 404);
+          return errorResponse("Insight not found", 404);
         }
         return jsonResponse(insight);
       }
@@ -292,7 +348,7 @@ export default {
       // ────────────────────────────────────────────────
       // POST /api/insights/analyze
       // ────────────────────────────────────────────────
-      if (pathname === '/api/insights/analyze' && method === 'POST') {
+      if (pathname === "/api/insights/analyze" && method === "POST") {
         const body = (await request.json()) as {
           startDate: string;
           endDate: string;
@@ -302,104 +358,114 @@ export default {
 
         const { startDate, endDate } = body;
         if (!startDate || !endDate) {
-          return errorResponse('startDate and endDate are required', 400);
+          return errorResponse("startDate and endDate are required", 400);
         }
 
         const nDias = daysBetween(startDate, endDate);
         const prev = getPreviousPeriod(startDate, endDate);
 
         // Query all data in parallel: current + previous period
-        const [kpis, byChannel, utmCampaigns, funnel, pagesResult, prevKPIs, prevByChannel, prevUtmCampaigns] =
-          await Promise.all([
-            queryKPIs(env.DB, startDate, endDate),
-            queryByChannel(env.DB, startDate, endDate),
-            queryByUTMDimension(env.DB, startDate, endDate, 'campaign'),
-            queryFunnel(env.DB, startDate, endDate),
-            queryPages(env.DB, startDate, endDate, 1, 20),
-            queryKPIs(env.DB, prev.startDate, prev.endDate),
-            queryByChannel(env.DB, prev.startDate, prev.endDate),
-            queryByUTMDimension(env.DB, prev.startDate, prev.endDate, 'campaign'),
-          ]);
+        const [
+          kpis,
+          byChannel,
+          utmCampaigns,
+          funnel,
+          pagesResult,
+          prevKPIs,
+          prevByChannel,
+          prevUtmCampaigns,
+        ] = await Promise.all([
+          queryKPIs(env.DB, startDate, endDate),
+          queryByChannel(env.DB, startDate, endDate),
+          queryByUTMDimension(env.DB, startDate, endDate, "campaign"),
+          queryFunnel(env.DB, startDate, endDate),
+          queryPages(env.DB, startDate, endDate, 1, 20),
+          queryKPIs(env.DB, prev.startDate, prev.endDate),
+          queryByChannel(env.DB, prev.startDate, prev.endDate),
+          queryByUTMDimension(env.DB, prev.startDate, prev.endDate, "campaign"),
+        ]);
 
         // ── Build markdown tables ──
 
         // KPIs gerais
         const tabelaKPIs = [
-          '| KPI | Valor |',
-          '|-----|-------|',
-          `| Sessões | ${kpis.sessions.toLocaleString('pt-BR')} |`,
-          `| Usuários | ${kpis.users.toLocaleString('pt-BR')} |`,
-          `| Novos Usuários | ${kpis.newUsers.toLocaleString('pt-BR')} |`,
+          "| KPI | Valor |",
+          "|-----|-------|",
+          `| Sessões | ${kpis.sessions.toLocaleString("pt-BR")} |`,
+          `| Usuários | ${kpis.users.toLocaleString("pt-BR")} |`,
+          `| Novos Usuários | ${kpis.newUsers.toLocaleString("pt-BR")} |`,
           `| Bounce Rate | ${formatPercent(kpis.bounceRate)} |`,
           `| Duração Média | ${formatDuration(kpis.avgSessionDuration)} |`,
-          `| Páginas/Sessão | ${kpis.sessions > 0 ? (kpis.pageViews / kpis.sessions).toFixed(2) : '0'} |`,
-          `| Leads | ${kpis.leads.toLocaleString('pt-BR')} |`,
-          `| Vendas | ${kpis.contracts.toLocaleString('pt-BR')} |`,
+          `| Páginas/Sessão | ${kpis.sessions > 0 ? (kpis.pageViews / kpis.sessions).toFixed(2) : "0"} |`,
+          `| Leads | ${kpis.leads.toLocaleString("pt-BR")} |`,
+          `| Vendas | ${kpis.contracts.toLocaleString("pt-BR")} |`,
           `| Taxa Conv. Lead | ${formatPercent(kpis.convRateLead)} |`,
           `| Taxa Conv. Venda | ${formatPercent(kpis.convRateContract)} |`,
-        ].join('\n');
+        ].join("\n");
 
         // Canais
         const tabelaCanais = [
-          '| Canal | Sessões | Usuários | Bounce Rate | Duração | Leads | Vendas |',
-          '|-------|---------|----------|-------------|---------|-------|-----------|',
+          "| Canal | Sessões | Usuários | Bounce Rate | Duração | Leads | Vendas |",
+          "|-------|---------|----------|-------------|---------|-------|-----------|",
           ...byChannel.map(
             (ch) =>
-              `| ${ch.channel} | ${ch.sessions} | ${ch.users} | ${formatPercent(ch.bounceRate)} | ${formatDuration(ch.avgSessionDuration)} | ${ch.leads} | ${ch.contracts} |`
+              `| ${ch.channel} | ${ch.sessions} | ${ch.users} | ${formatPercent(ch.bounceRate)} | ${formatDuration(ch.avgSessionDuration)} | ${ch.leads} | ${ch.contracts} |`,
           ),
-        ].join('\n');
+        ].join("\n");
 
         // UTMs (campaign with source/medium from top campaigns)
         const tabelaUtms = [
-          '| Campanha | Sessões | Leads | Vendas | Conv. Lead | Conv. Venda |',
-          '|----------|---------|-------|-----------|------------|----------------|',
+          "| Campanha | Sessões | Leads | Vendas | Conv. Lead | Conv. Venda |",
+          "|----------|---------|-------|-----------|------------|----------------|",
           ...utmCampaigns
             .filter((u) => u.sessions > 0)
             .slice(0, 30)
             .map(
               (u) =>
-                `| ${u.value} | ${u.sessions} | ${u.leads} | ${u.contracts} | ${formatPercent(u.convRateLead)} | ${formatPercent(u.convRateContract)} |`
+                `| ${u.value} | ${u.sessions} | ${u.leads} | ${u.contracts} | ${formatPercent(u.convRateLead)} | ${formatPercent(u.convRateContract)} |`,
             ),
-        ].join('\n');
+        ].join("\n");
 
         // Funil
         const tabelaFunil = [
-          '| Etapa | Contagem | % Total | % Step Anterior |',
-          '|-------|----------|---------|-----------------|',
+          "| Etapa | Contagem | % Total | % Step Anterior |",
+          "|-------|----------|---------|-----------------|",
           ...funnel.steps.map((step, i) => {
             const stepRate =
               i > 0 && funnel.stepConversions[i - 1]
                 ? formatPercent(funnel.stepConversions[i - 1].rate)
-                : '—';
+                : "—";
             return `| ${step.name} (${step.event}) | ${step.count} | ${formatPercent(step.rate)} | ${stepRate} |`;
           }),
-        ].join('\n');
+        ].join("\n");
 
         // Páginas
         const tabelaPaginas = [
-          '| Página | Views | Tempo Médio | Bounce Rate |',
-          '|--------|-------|-------------|-------------|',
-          ...pagesResult.data.slice(0, 20).map(
-            (p) =>
-              `| ${p.pagePath} | ${p.views} | ${formatDuration(p.avgTimeOnPage)} | ${formatPercent(p.bounceRate)} |`
-          ),
-        ].join('\n');
+          "| Página | Views | Tempo Médio | Bounce Rate |",
+          "|--------|-------|-------------|-------------|",
+          ...pagesResult.data
+            .slice(0, 20)
+            .map(
+              (p) =>
+                `| ${p.pagePath} | ${p.views} | ${formatDuration(p.avgTimeOnPage)} | ${formatPercent(p.bounceRate)} |`,
+            ),
+        ].join("\n");
 
         // Variação por canal
         const variacaoCanais = [
-          '| Canal | Sessões Atual | Sessões Anterior | Variação |',
-          '|-------|---------------|------------------|----------|',
+          "| Canal | Sessões Atual | Sessões Anterior | Variação |",
+          "|-------|---------------|------------------|----------|",
           ...byChannel.map((ch) => {
             const prevCh = prevByChannel.find((p) => p.channel === ch.channel);
             const prevSessions = prevCh?.sessions ?? 0;
             return `| ${ch.channel} | ${ch.sessions} | ${prevSessions} | ${pctVar(ch.sessions, prevSessions)} |`;
           }),
-        ].join('\n');
+        ].join("\n");
 
         // Variação por UTM
         const variacaoUtms = [
-          '| Campanha | Sessões Atual | Sessões Anterior | Variação | Leads Atual | Leads Anterior |',
-          '|----------|---------------|------------------|----------|-------------|----------------|',
+          "| Campanha | Sessões Atual | Sessões Anterior | Variação | Leads Atual | Leads Anterior |",
+          "|----------|---------------|------------------|----------|-------------|----------------|",
           ...utmCampaigns
             .filter((u) => u.sessions > 0)
             .slice(0, 20)
@@ -409,14 +475,17 @@ export default {
               const prevLeads = prevU?.leads ?? 0;
               return `| ${u.value} | ${u.sessions} | ${prevSessions} | ${pctVar(u.sessions, prevSessions)} | ${u.leads} | ${prevLeads} |`;
             }),
-        ].join('\n');
+        ].join("\n");
 
         // ── Calculate variations ──
         const varSessoes = pctVar(kpis.sessions, prevKPIs.sessions);
         const varLeads = pctVar(kpis.leads, prevKPIs.leads);
         const varVendas = pctVar(kpis.contracts, prevKPIs.contracts);
         const varBounce = pctVar(kpis.bounceRate, prevKPIs.bounceRate);
-        const varDuracao = pctVar(kpis.avgSessionDuration, prevKPIs.avgSessionDuration);
+        const varDuracao = pctVar(
+          kpis.avgSessionDuration,
+          prevKPIs.avgSessionDuration,
+        );
 
         // ── System prompt ──
         const defaultSystemPrompt = `Você é um analista de Growth especializado em tráfego web e conversão para a Petbee, uma insurtech de saúde pet.
@@ -482,21 +551,21 @@ Variação vs período anterior:
 
         // Replace all placeholders
         const replacements: Record<string, string> = {
-          '{startDate}': startDate,
-          '{endDate}': endDate,
-          '{n_dias}': nDias.toString(),
-          '{var_sessoes}': varSessoes,
-          '{var_leads}': varLeads,
-          '{var_contratos}': varVendas,
-          '{var_bounce}': varBounce,
-          '{var_duracao}': varDuracao,
-          '{tabela_kpis_gerais}': tabelaKPIs,
-          '{tabela_canais}': tabelaCanais,
-          '{tabela_utms}': tabelaUtms,
-          '{tabela_funil}': tabelaFunil,
-          '{tabela_paginas}': tabelaPaginas,
-          '{variacao_canais}': variacaoCanais,
-          '{variacao_utms}': variacaoUtms,
+          "{startDate}": startDate,
+          "{endDate}": endDate,
+          "{n_dias}": nDias.toString(),
+          "{var_sessoes}": varSessoes,
+          "{var_leads}": varLeads,
+          "{var_contratos}": varVendas,
+          "{var_bounce}": varBounce,
+          "{var_duracao}": varDuracao,
+          "{tabela_kpis_gerais}": tabelaKPIs,
+          "{tabela_canais}": tabelaCanais,
+          "{tabela_utms}": tabelaUtms,
+          "{tabela_funil}": tabelaFunil,
+          "{tabela_paginas}": tabelaPaginas,
+          "{variacao_canais}": variacaoCanais,
+          "{variacao_utms}": variacaoUtms,
         };
 
         for (const [placeholder, value] of Object.entries(replacements)) {
@@ -504,29 +573,34 @@ Variação vs período anterior:
         }
 
         // ── Call Anthropic Claude API ──
-        const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'x-api-key': env.ANTHROPIC_API_KEY,
-            'anthropic-version': '2023-06-01',
-            'Content-Type': 'application/json',
+        const anthropicResponse = await fetch(
+          "https://api.anthropic.com/v1/messages",
+          {
+            method: "POST",
+            headers: {
+              "x-api-key": env.ANTHROPIC_API_KEY,
+              "anthropic-version": "2023-06-01",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "claude-sonnet-4-6",
+              max_tokens: 8192,
+              system: systemPrompt,
+              messages: [
+                {
+                  role: "user",
+                  content: userPrompt,
+                },
+              ],
+            }),
           },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-5-20250929',
-            max_tokens: 8192,
-            system: systemPrompt,
-            messages: [
-              {
-                role: 'user',
-                content: userPrompt,
-              },
-            ],
-          }),
-        });
+        );
 
         if (!anthropicResponse.ok) {
           const errText = await anthropicResponse.text();
-          throw new Error(`Anthropic API error (${anthropicResponse.status}): ${errText}`);
+          throw new Error(
+            `Anthropic API error (${anthropicResponse.status}): ${errText}`,
+          );
         }
 
         const anthropicData = (await anthropicResponse.json()) as {
@@ -535,12 +609,17 @@ Variação vs período anterior:
 
         const analysis =
           anthropicData.content
-            ?.filter((block) => block.type === 'text')
+            ?.filter((block) => block.type === "text")
             .map((block) => block.text)
-            .join('\n') ?? '';
+            .join("\n") ?? "";
 
         // ── Save to D1 ──
-        const insightId = await saveInsight(env.DB, startDate, endDate, analysis);
+        const insightId = await saveInsight(
+          env.DB,
+          startDate,
+          endDate,
+          analysis,
+        );
 
         return jsonResponse({
           id: insightId,
@@ -552,17 +631,15 @@ Variação vs período anterior:
       // ────────────────────────────────────────────────
       // GET /api/config/funnel-pages
       // ────────────────────────────────────────────────
-      if (pathname === '/api/config/funnel-pages' && method === 'GET') {
+      if (pathname === "/api/config/funnel-pages" && method === "GET") {
         // Get all distinct pages from ga4_page_conversions (all time) + blocked status
-        const allPagesResult = await env.DB
-          .prepare(
-            `SELECT DISTINCT page_path FROM ga4_page_conversions ORDER BY page_path`
-          )
-          .all();
+        const allPagesResult = await env.DB.prepare(
+          `SELECT DISTINCT page_path FROM ga4_page_conversions ORDER BY page_path`,
+        ).all();
 
-        const allPages = (allPagesResult.results as Record<string, unknown>[]).map(
-          (row) => row.page_path as string
-        );
+        const allPages = (
+          allPagesResult.results as Record<string, unknown>[]
+        ).map((row) => row.page_path as string);
 
         const blockedPages = await queryBlockedFunnelPages(env.DB);
         const blockedSet = new Set(blockedPages);
@@ -578,7 +655,7 @@ Variação vs período anterior:
       // ────────────────────────────────────────────────
       // POST /api/config/funnel-pages
       // ────────────────────────────────────────────────
-      if (pathname === '/api/config/funnel-pages' && method === 'POST') {
+      if (pathname === "/api/config/funnel-pages" && method === "POST") {
         const body = (await request.json()) as {
           blocked?: string[];
           unblocked?: string[];
@@ -602,27 +679,35 @@ Variação vs período anterior:
       // ────────────────────────────────────────────────
       // POST /api/sync/trigger
       // ────────────────────────────────────────────────
-      if (pathname === '/api/sync/trigger' && method === 'POST') {
+      if (pathname === "/api/sync/trigger" && method === "POST") {
         // Validate Bearer token
-        const authHeader = request.headers.get('Authorization');
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-          return errorResponse('Unauthorized: Missing Bearer token', 401);
+        const authHeader = request.headers.get("Authorization");
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+          return errorResponse("Unauthorized: Missing Bearer token", 401);
         }
 
-        const token = authHeader.slice('Bearer '.length).trim();
+        const token = authHeader.slice("Bearer ".length).trim();
         if (token !== env.SYNC_SECRET) {
-          return errorResponse('Unauthorized: Invalid token', 401);
+          return errorResponse("Unauthorized: Invalid token", 401);
         }
 
         // Get date range from query params or default to yesterday + today
-        const startDate = url.searchParams.get('startDate') ?? yesterdaySP();
-        const endDate = url.searchParams.get('endDate') ?? todaySP();
+        const startDate = url.searchParams.get("startDate") ?? yesterdaySP();
+        const endDate = url.searchParams.get("endDate") ?? todaySP();
 
         // Get Google access token
         const accessToken = await getAccessToken(env);
 
         // Fetch all data from GA4 in parallel
-        const [sessions, conversions, pages, pageConversions, dailyTotals, dailyConversions, onboardingSteps] = await Promise.all([
+        const [
+          sessions,
+          conversions,
+          pages,
+          pageConversions,
+          dailyTotals,
+          dailyConversions,
+          onboardingSteps,
+        ] = await Promise.all([
           fetchSessions(env, startDate, endDate),
           fetchConversions(env, startDate, endDate),
           fetchPages(env, startDate, endDate),
@@ -633,7 +718,15 @@ Variação vs período anterior:
         ]);
 
         // Sync all to D1
-        const [syncedSessions, syncedConversions, syncedPages, syncedPageConversions, syncedDailyTotals, syncedDailyConversions, syncedOnboardingSteps] = await Promise.all([
+        const [
+          syncedSessions,
+          syncedConversions,
+          syncedPages,
+          syncedPageConversions,
+          syncedDailyTotals,
+          syncedDailyConversions,
+          syncedOnboardingSteps,
+        ] = await Promise.all([
           syncSessions(env.DB, sessions),
           syncConversions(env.DB, conversions),
           syncPages(env.DB, pages),
@@ -661,10 +754,11 @@ Variação vs período anterior:
       // ────────────────────────────────────────────────
       // 404 — Unknown route
       // ────────────────────────────────────────────────
-      return errorResponse('Not found', 404);
+      return errorResponse("Not found", 404);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Internal server error';
-      console.error('Worker error:', err);
+      const message =
+        err instanceof Error ? err.message : "Internal server error";
+      console.error("Worker error:", err);
       return errorResponse(message, 500);
     }
   },

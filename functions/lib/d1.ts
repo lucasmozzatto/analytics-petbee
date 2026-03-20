@@ -103,10 +103,10 @@ export async function syncPages(db: D1Database, rows: PageRow[]): Promise<number
 
   const sql = `
     INSERT INTO ga4_pages (
-      date_ref, page_path, page_title,
+      date_ref, hostname, page_path, page_title,
       screen_page_views, avg_time_on_page, bounce_rate
-    ) VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT (date_ref, page_path)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (date_ref, hostname, page_path)
     DO UPDATE SET
       page_title = excluded.page_title,
       screen_page_views = excluded.screen_page_views,
@@ -119,6 +119,7 @@ export async function syncPages(db: D1Database, rows: PageRow[]): Promise<number
     const stmts = chunk.map((r) =>
       db.prepare(sql).bind(
         r.date,
+        r.hostname,
         r.pagePath,
         r.pageTitle,
         r.screenPageViews,
@@ -846,9 +847,9 @@ export async function syncPageConversions(db: D1Database, rows: PageConversionRo
 
   const sql = `
     INSERT INTO ga4_page_conversions (
-      date_ref, event_name, page_path, event_count, event_value
-    ) VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT (date_ref, event_name, page_path)
+      date_ref, event_name, hostname, page_path, event_count, event_value
+    ) VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT (date_ref, event_name, hostname, page_path)
     DO UPDATE SET
       event_count = excluded.event_count,
       event_value = excluded.event_value
@@ -860,6 +861,7 @@ export async function syncPageConversions(db: D1Database, rows: PageConversionRo
       db.prepare(sql).bind(
         r.date,
         r.eventName,
+        r.hostname,
         r.pagePath,
         r.eventCount,
         r.eventValue
@@ -948,41 +950,62 @@ export async function updateBlockedFunnelPages(
 }
 
 /**
- * Returns funnel data filtered by page path.
- * If pagePath is provided, uses ga4_pages for visitors and ga4_page_conversions for events.
- * If pagePath is omitted or "all", falls back to the global queryFunnel logic.
+ * Returns funnel data filtered by page path and/or hostname.
+ * If hostname is provided, filters by hostname (domain-level funnel).
+ * If pagePath is provided, filters by page path prefix.
+ * If neither is provided, falls back to the global queryFunnel logic.
  */
 export async function queryPageFunnel(
   db: D1Database,
   startDate: string,
   endDate: string,
-  pagePath?: string
+  pagePath?: string,
+  hostname?: string
 ): Promise<FunnelData> {
-  // No page filter — use the global funnel
-  if (!pagePath || pagePath === 'all') {
+  // No filter — use the global funnel
+  if ((!pagePath || pagePath === 'all') && !hostname) {
     return queryFunnel(db, startDate, endDate);
   }
 
-  const likePattern = pagePath + '%';
+  // Build WHERE clauses based on filters
+  const visitorsWhere: string[] = ['date_ref >= ?', 'date_ref <= ?'];
+  const visitorsBinds: (string)[] = [startDate, endDate];
+  const eventsWhere: string[] = ['date_ref >= ?', 'date_ref <= ?'];
+  const eventsBinds: (string)[] = [startDate, endDate];
+
+  if (hostname) {
+    visitorsWhere.push('hostname = ?');
+    visitorsBinds.push(hostname);
+    eventsWhere.push('hostname = ?');
+    eventsBinds.push(hostname);
+  }
+
+  if (pagePath && pagePath !== 'all') {
+    const likePattern = pagePath + '%';
+    visitorsWhere.push('page_path LIKE ?');
+    visitorsBinds.push(likePattern);
+    eventsWhere.push('page_path LIKE ?');
+    eventsBinds.push(likePattern);
+  }
 
   // Get page visitors (screen_page_views) from ga4_pages
   const visitorsQuery = db
     .prepare(
       `SELECT COALESCE(SUM(screen_page_views), 0) AS total
       FROM ga4_pages
-      WHERE date_ref >= ? AND date_ref <= ? AND page_path LIKE ?`
+      WHERE ${visitorsWhere.join(' AND ')}`
     )
-    .bind(startDate, endDate, likePattern);
+    .bind(...visitorsBinds);
 
-  // Get conversion events for this page path prefix
+  // Get conversion events
   const eventsQuery = db
     .prepare(
       `SELECT event_name, SUM(event_count) AS total
       FROM ga4_page_conversions
-      WHERE date_ref >= ? AND date_ref <= ? AND page_path LIKE ?
+      WHERE ${eventsWhere.join(' AND ')}
       GROUP BY event_name`
     )
-    .bind(startDate, endDate, likePattern);
+    .bind(...eventsBinds);
 
   const [visitorsResult, eventsResult] = await db.batch([visitorsQuery, eventsQuery]);
 
@@ -1083,7 +1106,7 @@ export async function syncOnboardingSteps(db: D1Database, rows: OnboardingStepRo
   return rows.length;
 }
 
-export interface OnboardingFunnelStep {
+export interface OnboardingStep {
   stepNumber: number;
   stepName: string;
   users: number;
@@ -1093,7 +1116,7 @@ export interface OnboardingFunnelStep {
 }
 
 export interface OnboardingFunnelData {
-  steps: OnboardingFunnelStep[];
+  steps: OnboardingStep[];
   totalStep1Users: number;
 }
 
@@ -1131,7 +1154,7 @@ export async function queryOnboardingFunnel(
 
   const totalStep1Users = rawSteps.length > 0 ? rawSteps[0].users : 0;
 
-  const steps: OnboardingFunnelStep[] = rawSteps.map((step, i) => ({
+  const steps: OnboardingStep[] = rawSteps.map((step, i) => ({
     stepNumber: step.stepNumber,
     stepName: step.stepName,
     users: step.users,

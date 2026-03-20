@@ -31,9 +31,10 @@ CREATE TABLE IF NOT EXISTS ga4_conversions (
   PRIMARY KEY (date_ref, event_name, source, medium, campaign, content, term)
 );
 
--- GA4 Pages (top páginas diárias)
+-- GA4 Pages (top páginas diárias por hostname)
 CREATE TABLE IF NOT EXISTS ga4_pages (
   date_ref TEXT NOT NULL,
+  hostname TEXT NOT NULL DEFAULT '',
   page_path TEXT NOT NULL,
   page_title TEXT NOT NULL DEFAULT '',
   screen_page_views INTEGER NOT NULL DEFAULT 0,
@@ -41,17 +42,18 @@ CREATE TABLE IF NOT EXISTS ga4_pages (
   avg_time_on_page REAL NOT NULL DEFAULT 0,
   bounce_rate REAL NOT NULL DEFAULT 0,
   exits INTEGER NOT NULL DEFAULT 0,
-  PRIMARY KEY (date_ref, page_path)
+  PRIMARY KEY (date_ref, hostname, page_path)
 );
 
--- GA4 Page Conversions (eventos de conversão diários por página)
+-- GA4 Page Conversions (eventos de conversão diários por hostname + página)
 CREATE TABLE IF NOT EXISTS ga4_page_conversions (
   date_ref TEXT NOT NULL,
   event_name TEXT NOT NULL,
+  hostname TEXT NOT NULL DEFAULT '',
   page_path TEXT NOT NULL,
   event_count INTEGER NOT NULL DEFAULT 0,
   event_value REAL NOT NULL DEFAULT 0,
-  PRIMARY KEY (date_ref, event_name, page_path)
+  PRIMARY KEY (date_ref, event_name, hostname, page_path)
 );
 
 -- GA4 Daily Totals (agregado sem breakdown UTM — usuários deduplicated)
@@ -115,7 +117,9 @@ CREATE INDEX IF NOT EXISTS idx_sessions_date ON ga4_sessions(date_ref);
 CREATE INDEX IF NOT EXISTS idx_conversions_date ON ga4_conversions(date_ref);
 CREATE INDEX IF NOT EXISTS idx_conversions_event ON ga4_conversions(event_name);
 CREATE INDEX IF NOT EXISTS idx_pages_date ON ga4_pages(date_ref);
+CREATE INDEX IF NOT EXISTS idx_pages_hostname ON ga4_pages(hostname);
 CREATE INDEX IF NOT EXISTS idx_page_conversions_date ON ga4_page_conversions(date_ref);
 CREATE INDEX IF NOT EXISTS idx_page_conversions_page ON ga4_page_conversions(page_path);
+CREATE INDEX IF NOT EXISTS idx_page_conversions_hostname ON ga4_page_conversions(hostname);
 CREATE INDEX IF NOT EXISTS idx_insights_created ON ai_insights(created_at);
 CREATE INDEX IF NOT EXISTS idx_onboarding_date ON ga4_onboarding_steps(date_ref);

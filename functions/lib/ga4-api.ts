@@ -382,6 +382,7 @@ export interface PageRow {
   date: string;
   pagePath: string;
   pageTitle: string;
+  hostname: string;
   screenPageViews: number;
   avgTimeOnPage: number;
   bounceRate: number;
@@ -401,6 +402,7 @@ export async function fetchPages(
       { name: 'date' },
       { name: 'pagePath' },
       { name: 'pageTitle' },
+      { name: 'hostName' },
     ],
     metrics: [
       { name: 'screenPageViews' },
@@ -415,6 +417,7 @@ export async function fetchPages(
     date: formatGA4Date(row.dimensionValues[0].value),
     pagePath: row.dimensionValues[1].value || '',
     pageTitle: row.dimensionValues[2].value || '',
+    hostname: row.dimensionValues[3].value || '',
     screenPageViews: parseInt(row.metricValues[0].value, 10) || 0,
     avgTimeOnPage: parseFloat(row.metricValues[1].value) || 0,
     bounceRate: parseFloat(row.metricValues[2].value) || 0,
@@ -427,6 +430,7 @@ export interface PageConversionRow {
   date: string;
   eventName: string;
   pagePath: string;
+  hostname: string;
   eventCount: number;
   eventValue: number;
 }
@@ -448,6 +452,7 @@ export async function fetchPageConversions(
       { name: 'date' },
       { name: 'eventName' },
       { name: 'pagePath' },
+      { name: 'hostName' },
     ],
     metrics: [
       { name: 'eventCount' },
@@ -469,6 +474,7 @@ export async function fetchPageConversions(
     date: formatGA4Date(row.dimensionValues[0].value),
     eventName: row.dimensionValues[1].value || '',
     pagePath: row.dimensionValues[2].value || '',
+    hostname: row.dimensionValues[3].value || '',
     eventCount: parseInt(row.metricValues[0].value, 10) || 0,
     eventValue: parseFloat(row.metricValues[1].value) || 0,
   }));
