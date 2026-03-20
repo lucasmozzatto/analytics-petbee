@@ -22,7 +22,7 @@ const DIMENSION_LABELS: Record<UTMDimension, string> = {
 };
 
 export default function UTMs() {
-  const { window, setWindow, startDate, endDate } = useTimeWindow();
+  const { window, setWindow, startDate, endDate, customStart, customEnd, setCustomRange } = useTimeWindow();
   const [dimension, setDimension] = useState<UTMDimension>('campaign');
   const [data, setData] = useState<UTMRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +42,7 @@ export default function UTMs() {
         <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Análise por parâmetros UTM</p>
       </div>
 
-      <TimeWindowPicker value={window} onChange={setWindow} startDate={startDate} endDate={endDate} />
+      <TimeWindowPicker value={window} onChange={setWindow} startDate={startDate} endDate={endDate} customStart={customStart} customEnd={customEnd} onCustomRange={setCustomRange} />
 
       <div className="flex gap-1">
         {TABS.map((tab) => (

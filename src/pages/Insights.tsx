@@ -7,7 +7,7 @@ import { formatDateBR } from '../lib/format';
 import TimeWindowPicker from '../components/TimeWindowPicker';
 
 export default function Insights() {
-  const { window, setWindow, startDate, endDate } = useTimeWindow();
+  const { window, setWindow, startDate, endDate, customStart, customEnd, setCustomRange } = useTimeWindow();
   const [analysis, setAnalysis] = useState<InsightFull | null>(null);
   const [history, setHistory] = useState<InsightSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -57,7 +57,7 @@ export default function Insights() {
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Análise automatizada com inteligência artificial</p>
       </div>
 
-      <TimeWindowPicker value={window} onChange={setWindow} startDate={startDate} endDate={endDate} />
+      <TimeWindowPicker value={window} onChange={setWindow} startDate={startDate} endDate={endDate} customStart={customStart} customEnd={customEnd} onCustomRange={setCustomRange} />
 
       {/* Config section */}
       <div

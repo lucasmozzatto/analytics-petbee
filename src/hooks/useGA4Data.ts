@@ -80,8 +80,8 @@ export const TIME_WINDOWS: TimeWindow[] = [
   { label: '7 dias', value: '7d' },
   { label: '14 dias', value: '14d' },
   { label: '30 dias', value: '30d' },
-  { label: 'Este m\u00eas', value: 'this_month' },
-  { label: 'M\u00eas passado', value: 'last_month' },
+  { label: 'Este mês', value: 'this_month' },
+  { label: 'Mês passado', value: 'last_month' },
 ];
 
 interface UseTimeWindowResult {
@@ -89,8 +89,11 @@ interface UseTimeWindowResult {
   startDate: string;
   endDate: string;
   compare: boolean;
+  customStart: string;
+  customEnd: string;
   setWindow: (value: string) => void;
   setCompare: (value: boolean) => void;
+  setCustomRange: (start: string, end: string) => void;
 }
 
 /**
@@ -100,12 +103,18 @@ interface UseTimeWindowResult {
 export function useTimeWindow(defaultWindow = '7d'): UseTimeWindowResult {
   const [window, setWindow] = useState(defaultWindow);
   const [compare, setCompare] = useState(false);
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
 
   const { startDate, endDate } = useMemo(() => {
     const nowUTC = new Date();
     const now = toZonedTime(nowUTC, TZ);
     const today = startOfDay(now);
     const yesterday = subDays(today, 1);
+
+    if (window === 'custom' && customStart && customEnd) {
+      return { startDate: customStart, endDate: customEnd };
+    }
 
     let start: Date;
     let end: Date;
@@ -157,14 +166,23 @@ export function useTimeWindow(defaultWindow = '7d'): UseTimeWindowResult {
       startDate: format(start, 'yyyy-MM-dd'),
       endDate: format(end, 'yyyy-MM-dd'),
     };
-  }, [window]);
+  }, [window, customStart, customEnd]);
+
+  const setCustomRange = useCallback((start: string, end: string) => {
+    setCustomStart(start);
+    setCustomEnd(end);
+    setWindow('custom');
+  }, []);
 
   return {
     window,
     startDate,
     endDate,
     compare,
+    customStart,
+    customEnd,
     setWindow,
     setCompare,
+    setCustomRange,
   };
 }

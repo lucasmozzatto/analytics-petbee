@@ -19,7 +19,7 @@ const CHANNEL_COLORS: Record<string, string> = {
 };
 
 export default function Visao() {
-  const { window, setWindow, startDate, endDate, compare, setCompare } = useTimeWindow();
+  const { window, setWindow, startDate, endDate, compare, setCompare, customStart, customEnd, setCustomRange } = useTimeWindow();
   const [data, setData] = useState<VisaoGeralResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -49,7 +49,7 @@ export default function Visao() {
       </div>
 
       <div className="flex items-center gap-4 flex-wrap">
-        <TimeWindowPicker value={window} onChange={setWindow} startDate={startDate} endDate={endDate} />
+        <TimeWindowPicker value={window} onChange={setWindow} startDate={startDate} endDate={endDate} customStart={customStart} customEnd={customEnd} onCustomRange={setCustomRange} />
         <CompareToggle enabled={compare} onChange={setCompare} />
       </div>
 

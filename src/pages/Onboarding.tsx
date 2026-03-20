@@ -10,7 +10,7 @@ import { formatNumber, formatPercent } from '../lib/format';
 import { getStepConfig, getStepLabel, PHASE_DISPLAY } from '../lib/onboarding-config';
 
 export default function Onboarding() {
-  const { window, setWindow, startDate, endDate, compare, setCompare } = useTimeWindow();
+  const { window, setWindow, startDate, endDate, compare, setCompare, customStart, customEnd, setCustomRange } = useTimeWindow();
   const [data, setData] = useState<OnboardingFunnelData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -105,7 +105,7 @@ export default function Onboarding() {
       </div>
 
       <div className="flex items-center gap-4 flex-wrap">
-        <TimeWindowPicker value={window} onChange={setWindow} startDate={startDate} endDate={endDate} />
+        <TimeWindowPicker value={window} onChange={setWindow} startDate={startDate} endDate={endDate} customStart={customStart} customEnd={customEnd} onCustomRange={setCustomRange} />
         <CompareToggle enabled={compare} onChange={setCompare} />
       </div>
 
