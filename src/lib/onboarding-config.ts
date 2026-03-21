@@ -5,7 +5,8 @@ export type OnboardingPhase =
   | 'dados_pet'
   | 'plano'
   | 'cadastro'
-  | 'revisao';
+  | 'revisao'
+  | 'pagamento';
 
 export interface OnboardingStepConfig {
   stepNumber: number;
@@ -38,6 +39,8 @@ export const ONBOARDING_STEPS: OnboardingStepConfig[] = [
   { stepNumber: 18, routeName: 'confirm', label: 'Confirmar Identidade', phase: 'cadastro', flow: 'new', keyEvents: ['sign_up'] },
   { stepNumber: 19, routeName: 'pet-summary', label: 'Resumo do Pet', phase: 'revisao', flow: 'shared' },
   { stepNumber: 20, routeName: 'summary', label: 'Checkout', phase: 'revisao', flow: 'shared', keyEvents: ['begin_checkout', 'add_payment_info'] },
+  { stepNumber: 21, routeName: 'payment', label: 'Pagamento', phase: 'pagamento', flow: 'shared', keyEvents: ['add_payment_info'] },
+  { stepNumber: 22, routeName: 'purchase', label: 'Venda', phase: 'pagamento', flow: 'shared', keyEvents: ['purchase'] },
 ];
 
 export const PHASE_DISPLAY: Record<OnboardingPhase, { label: string; color: string }> = {
@@ -48,6 +51,7 @@ export const PHASE_DISPLAY: Record<OnboardingPhase, { label: string; color: stri
   plano: { label: 'PLANO & COBERTURAS', color: 'var(--amber)' },
   cadastro: { label: 'CADASTRO', color: 'var(--orange)' },
   revisao: { label: 'REVISÃO & CHECKOUT', color: 'var(--accent)' },
+  pagamento: { label: 'PAGAMENTO & VENDA', color: 'var(--red)' },
 };
 
 const stepMap = new Map(ONBOARDING_STEPS.map((s) => [s.stepNumber, s]));

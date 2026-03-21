@@ -1157,7 +1157,8 @@ export async function queryOnboardingFunnel(
   startDate: string,
   endDate: string
 ): Promise<OnboardingFunnelData> {
-  const result = await db
+  // Query 1: onboarding steps (CTE garante todos os 14 steps)
+  const stepsQuery = db
     .prepare(
       `WITH funnel_steps (step_number, step_name) AS (
         VALUES
@@ -1188,15 +1189,50 @@ export async function queryOnboardingFunnel(
       GROUP BY fs.step_number, fs.step_name
       ORDER BY fs.step_number ASC`
     )
-    .bind(startDate, endDate)
-    .all();
+    .bind(startDate, endDate);
 
-  const rawSteps = (result.results as Record<string, unknown>[]).map((row) => ({
+  // Query 2: conversion events (add_payment_info, purchase) do mesmo período
+  const conversionsQuery = db
+    .prepare(
+      `SELECT event_name,
+        CASE WHEN SUM(sessions_with_event) > 0
+          THEN SUM(sessions_with_event)
+          ELSE SUM(event_count)
+        END AS total
+      FROM ga4_daily_conversions
+      WHERE date_ref >= ? AND date_ref <= ?
+        AND event_name IN ('add_payment_info', 'purchase')
+      GROUP BY event_name`
+    )
+    .bind(startDate, endDate);
+
+  const [stepsResult, conversionsResult] = await db.batch([stepsQuery, conversionsQuery]);
+
+  const rawSteps = (stepsResult.results as Record<string, unknown>[]).map((row) => ({
     stepNumber: (row.step_number as number) ?? 0,
     stepName: (row.step_name as string) ?? '',
     eventCount: (row.event_count as number) ?? 0,
     users: (row.users as number) ?? 0,
   }));
+
+  // Append conversion events as virtual steps (21, 22)
+  const conversionStepDefs = [
+    { stepNumber: 21, stepName: 'payment', event: 'add_payment_info' },
+    { stepNumber: 22, stepName: 'purchase', event: 'purchase' },
+  ];
+  const convCounts: Record<string, number> = {};
+  for (const row of conversionsResult.results as Record<string, unknown>[]) {
+    convCounts[row.event_name as string] = (row.total as number) ?? 0;
+  }
+  for (const def of conversionStepDefs) {
+    const count = convCounts[def.event] ?? 0;
+    rawSteps.push({
+      stepNumber: def.stepNumber,
+      stepName: def.stepName,
+      eventCount: count,
+      users: count,
+    });
+  }
 
   // Step 5 (customer) é a âncora do funil de novos clientes
   const anchorStep = rawSteps.find(s => s.stepNumber === 5);
