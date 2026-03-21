@@ -100,7 +100,7 @@ interface UseTimeWindowResult {
  * Hook that manages the selected time window and computes
  * startDate / endDate in YYYY-MM-DD format using Sao Paulo timezone.
  */
-export function useTimeWindow(defaultWindow = '7d'): UseTimeWindowResult {
+export function useTimeWindow(defaultWindow = '7d', minDate?: string): UseTimeWindowResult {
   const [window, setWindow] = useState(defaultWindow);
   const [compare, setCompare] = useState(false);
   const [customStart, setCustomStart] = useState('');
@@ -113,7 +113,9 @@ export function useTimeWindow(defaultWindow = '7d'): UseTimeWindowResult {
     const yesterday = subDays(today, 1);
 
     if (window === 'custom' && customStart && customEnd) {
-      return { startDate: customStart, endDate: customEnd };
+      let sd = customStart;
+      if (minDate && sd < minDate) sd = minDate;
+      return { startDate: sd, endDate: customEnd };
     }
 
     let start: Date;
@@ -162,11 +164,14 @@ export function useTimeWindow(defaultWindow = '7d'): UseTimeWindowResult {
         end = yesterday;
     }
 
+    let sd = format(start, 'yyyy-MM-dd');
+    if (minDate && sd < minDate) sd = minDate;
+
     return {
-      startDate: format(start, 'yyyy-MM-dd'),
+      startDate: sd,
       endDate: format(end, 'yyyy-MM-dd'),
     };
-  }, [window, customStart, customEnd]);
+  }, [window, customStart, customEnd, minDate]);
 
   const setCustomRange = useCallback((start: string, end: string) => {
     setCustomStart(start);

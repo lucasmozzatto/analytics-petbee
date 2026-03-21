@@ -10,7 +10,7 @@ import { formatNumber, formatPercent } from '../lib/format';
 import { getStepConfig, getStepLabel, PHASE_DISPLAY } from '../lib/onboarding-config';
 
 export default function Onboarding() {
-  const { window, setWindow, startDate, endDate, compare, setCompare, customStart, customEnd, setCustomRange } = useTimeWindow();
+  const { window, setWindow, startDate, endDate, compare, setCompare, customStart, customEnd, setCustomRange } = useTimeWindow('7d', '2025-03-21');
   const [data, setData] = useState<OnboardingFunnelData | null>(null);
   const [loading, setLoading] = useState(true);
 
