@@ -370,12 +370,25 @@ export default {
         const nDias = daysBetween(startDate, endDate);
         const prev = getPreviousPeriod(startDate, endDate);
 
-        // Query all data in parallel: current + previous period
+        // Step labels for onboarding (server-side map)
+        const STEP_LABELS: Record<number, string> = {
+          5: 'Dados Pessoais', 6: 'Nome do Pet', 7: 'Espécie do Pet',
+          8: 'Endereço', 9: 'Detalhes do Pet', 10: 'Raça do Pet',
+          13: 'Plano', 14: 'Adic. Vacina', 15: 'Adic. Checkup',
+          16: 'Adic. Dental', 17: 'Cadastro', 18: 'Confirmar Identidade',
+          19: 'Resumo do Pet', 20: 'Checkout', 21: 'Pagamento', 22: 'Venda',
+        };
+
+        // Query all data in parallel: current + previous period + new sources
         const [
           kpis,
           byChannel,
           utmCampaigns,
+          utmSources,
+          utmMediums,
           funnel,
+          lpFunnel,
+          onboarding,
           pagesResult,
           prevKPIs,
           prevByChannel,
@@ -384,8 +397,12 @@ export default {
           queryKPIs(env.DB, startDate, endDate),
           queryByChannel(env.DB, startDate, endDate),
           queryByUTMDimension(env.DB, startDate, endDate, "campaign"),
+          queryByUTMDimension(env.DB, startDate, endDate, "source"),
+          queryByUTMDimension(env.DB, startDate, endDate, "medium"),
           queryFunnel(env.DB, startDate, endDate),
-          queryPages(env.DB, startDate, endDate, 1, 20),
+          queryPageFunnel(env.DB, startDate, endDate, undefined, "lp.petbee.com.br"),
+          queryOnboardingFunnel(env.DB, startDate, endDate),
+          queryPages(env.DB, startDate, endDate, 1, 30),
           queryKPIs(env.DB, prev.startDate, prev.endDate),
           queryByChannel(env.DB, prev.startDate, prev.endDate),
           queryByUTMDimension(env.DB, prev.startDate, prev.endDate, "campaign"),
@@ -412,17 +429,17 @@ export default {
         // Canais
         const tabelaCanais = [
           "| Canal | Sessões | Usuários | Bounce Rate | Duração | Leads | Vendas |",
-          "|-------|---------|----------|-------------|---------|-------|-----------|",
+          "|-------|---------|----------|-------------|---------|-------|--------|",
           ...byChannel.map(
             (ch) =>
               `| ${ch.channel} | ${ch.sessions} | ${ch.users} | ${formatPercent(ch.bounceRate)} | ${formatDuration(ch.avgSessionDuration)} | ${ch.leads} | ${ch.contracts} |`,
           ),
         ].join("\n");
 
-        // UTMs (campaign with source/medium from top campaigns)
-        const tabelaUtms = [
+        // UTM Campaigns
+        const tabelaUtmCampaigns = [
           "| Campanha | Sessões | Leads | Vendas | Conv. Lead | Conv. Venda |",
-          "|----------|---------|-------|-----------|------------|----------------|",
+          "|----------|---------|-------|--------|------------|-------------|",
           ...utmCampaigns
             .filter((u) => u.sessions > 0)
             .slice(0, 30)
@@ -432,7 +449,33 @@ export default {
             ),
         ].join("\n");
 
-        // Funil
+        // UTM Sources
+        const tabelaUtmSources = [
+          "| Source | Sessões | Leads | Vendas | Conv. Lead |",
+          "|--------|---------|-------|--------|------------|",
+          ...utmSources
+            .filter((u) => u.sessions > 0)
+            .slice(0, 20)
+            .map(
+              (u) =>
+                `| ${u.value} | ${u.sessions} | ${u.leads} | ${u.contracts} | ${formatPercent(u.convRateLead)} |`,
+            ),
+        ].join("\n");
+
+        // UTM Mediums
+        const tabelaUtmMediums = [
+          "| Medium | Sessões | Leads | Vendas | Conv. Lead |",
+          "|--------|---------|-------|--------|------------|",
+          ...utmMediums
+            .filter((u) => u.sessions > 0)
+            .slice(0, 15)
+            .map(
+              (u) =>
+                `| ${u.value} | ${u.sessions} | ${u.leads} | ${u.contracts} | ${formatPercent(u.convRateLead)} |`,
+            ),
+        ].join("\n");
+
+        // Funil global
         const tabelaFunil = [
           "| Etapa | Contagem | % Total | % Step Anterior |",
           "|-------|----------|---------|-----------------|",
@@ -445,12 +488,35 @@ export default {
           }),
         ].join("\n");
 
+        // Funil LP
+        const tabelaFunilLP = [
+          "| Etapa | Contagem | % Total | % Step Anterior |",
+          "|-------|----------|---------|-----------------|",
+          ...lpFunnel.steps.map((step, i) => {
+            const stepRate =
+              i > 0 && lpFunnel.stepConversions[i - 1]
+                ? formatPercent(lpFunnel.stepConversions[i - 1].rate)
+                : "—";
+            return `| ${step.name} (${step.event}) | ${step.count} | ${formatPercent(step.rate)} | ${stepRate} |`;
+          }),
+        ].join("\n");
+
+        // Onboarding
+        const tabelaOnboarding = [
+          "| # | Etapa | Usuários | % vs Início | % vs Anterior |",
+          "|---|-------|----------|-------------|---------------|",
+          ...onboarding.steps.map((step) => {
+            const label = STEP_LABELS[step.stepNumber] || step.stepName;
+            return `| ${step.stepNumber} | ${label} | ${step.users} | ${formatPercent(step.rate)} | ${formatPercent(step.stepRate)} |`;
+          }),
+        ].join("\n");
+
         // Páginas
         const tabelaPaginas = [
           "| Página | Views | Tempo Médio | Bounce Rate |",
           "|--------|-------|-------------|-------------|",
           ...pagesResult.data
-            .slice(0, 20)
+            .slice(0, 30)
             .map(
               (p) =>
                 `| ${p.pagePath} | ${p.views} | ${formatDuration(p.avgTimeOnPage)} | ${formatPercent(p.bounceRate)} |`,
@@ -494,64 +560,139 @@ export default {
         );
 
         // ── System prompt ──
-        const defaultSystemPrompt = `Você é um analista de Growth especializado em tráfego web e conversão para a Petbee, uma insurtech de saúde pet.
+        const defaultSystemPrompt = `Você é um analista de Growth da Petbee (insurtech de saúde pet). Seu relatório será apresentado ao time de marketing. Tom: técnico, direto, orientado a ação.
 
-Contexto da Petbee:
-- A Petbee oferece planos de saúde para pets (cães e gatos)
-- O funil de conversão: Landing page (generate_lead) → site principal (add_to_cart → begin_checkout → add_payment_info → purchase)
-- "Leads" = evento generate_lead (formulário preenchido na landing page)
-- "Vendas" = evento purchase (venda efetivada)
+## Contexto do Negócio
 
-Benchmarks de referência:
-- Bounce rate landing page < 60%
-- Duração média de sessão > 1m30s
-- Taxa lead-to-venda > 8%
-- CTR orgânico > 3%
+A Petbee vende planos de saúde para pets (cães e gatos). A aquisição funciona em 3 estágios:
 
-Canais:
-- Organic Search: tráfego orgânico do Google
+1. **Landing Pages** (lp.petbee.com.br) — campanhas pagas e orgânicas direcionam para LPs com formulário. Conversão principal: generate_lead.
+2. **Website** (petbee.com.br) — site institucional com quiz/simulador de custos. Conversão principal: generate_lead via quiz.
+3. **Onboarding** (app.petbee.com.br) — fluxo de contratação com ~16 steps (dados pessoais → pet → plano → cadastro → checkout → pagamento → venda). Conversão final: purchase.
+
+## Funil completo
+
+LP/Website (generate_lead) → Onboarding steps 5-20 → Pagamento (add_payment_info) → Venda (purchase)
+
+## Definição de métricas
+
+- **Leads** = evento generate_lead (formulário ou quiz completado)
+- **Vendas** = evento purchase (contrato assinado)
+- **Bounce Rate** = taxa de rejeição (0-100%)
+- **Conv. Lead** = leads / sessões × 100
+- **Conv. Venda** = vendas / sessões × 100
+
+## Canais de tráfego
+
+- Organic Search: Google orgânico
 - Paid Search: Google Ads
 - Paid Social: Meta Ads (Facebook/Instagram)
-- Direct: acesso direto
+- Direct: acesso direto (url digitada ou bookmark)
 - Referral: links de outros sites
 - Email: campanhas de email marketing
 
-Regras da análise:
-1. NUNCA descreva um número sem interpretá-lo. Sempre contextualize com benchmarks, tendências ou comparações.
-2. Identifique padrões, anomalias e oportunidades acionáveis.
-3. Priorize insights que levem a ações concretas de Growth.
-4. Use linguagem direta, sem floreios. Seja específico.
-5. Quando houver queda, sugira hipóteses e ações corretivas.
-6. Quando houver crescimento, sugira como escalar.
+## Onboarding Steps (para referência)
 
-Alertas obrigatórios (mencionar se detectado):
-- Bounce rate > 60% em páginas de conversão
-- Queda súbita de tráfego orgânico (> 20% vs período anterior)
-- Campanhas UTM com alto volume de sessões mas zero conversão
-- Taxa de conversão lead-to-venda abaixo de 5%
-- Duração média de sessão < 30 segundos em qualquer canal`;
+Step 5: Dados Pessoais → 6: Nome Pet → 7: Espécie → 8: Endereço → 9: Detalhes Pet → 10: Raça → 13: Plano → 14-16: Coberturas adicionais → 17: Cadastro → 18: Confirmação → 19: Resumo → 20: Checkout → 21: Pagamento → 22: Venda
+
+## Regras da análise
+
+1. NUNCA descreva um número sem interpretá-lo — sempre compare com benchmarks ou período anterior.
+2. Priorize insights acionáveis: o time precisa saber O QUE fazer, não só o que aconteceu.
+3. Identifique os 3 maiores gargalos de conversão (LP, onboarding ou UTM) e sugira ações concretas.
+4. Destaque campanhas UTM com boa e má performance — o time decide onde investir mais.
+5. Para cada problema identificado, sugira pelo menos uma ação específica.
+6. Use linguagem acessível ao marketing mas com rigor técnico nos dados.
+
+## Benchmarks
+
+- Bounce rate LP: bom < 50%, aceitável < 60%, ruim > 70%
+- Duração média sessão: bom > 2min, aceitável > 1min, ruim < 30s
+- Conv. lead LP: bom > 5%, aceitável > 2%, ruim < 1%
+- Onboarding completion (step 5 → 22): bom > 15%, aceitável > 8%, ruim < 5%
+- Drop por step onboarding: aceitável < 15%, preocupante > 25%, crítico > 40%
+
+## Alertas automáticos (sempre mencionar se detectado)
+
+- Bounce rate > 65% em qualquer LP
+- Campanha UTM com > 100 sessões e 0 leads
+- Drop > 30% em qualquer step do onboarding
+- Taxa lead-to-venda global < 5%
+- Canal com queda > 20% vs período anterior`;
 
         const systemPrompt = body.systemPrompt || defaultSystemPrompt;
 
         // ── User prompt with placeholder replacement ──
-        const defaultUserPrompt = `Analise os dados de tráfego e conversão da Petbee no período de {startDate} a {endDate} ({n_dias} dias).
+        const defaultUserPrompt = `# Relatório de Performance — Petbee
+**Período:** {startDate} a {endDate} ({n_dias} dias)
+
+---
+
+## 1. Visão Geral
 
 {tabela_kpis_gerais}
 
-{tabela_canais}
-
-{tabela_utms}
-
-{tabela_funil}
-
-{tabela_paginas}
-
-Variação vs período anterior:
+**Variação vs período anterior:**
 - Sessões: {var_sessoes}
 - Leads: {var_leads}
 - Vendas: {var_contratos}
 - Bounce Rate: {var_bounce}
-- Duração Média: {var_duracao}`;
+- Duração Média: {var_duracao}
+
+## 2. Performance por Canal
+
+{tabela_canais}
+
+{variacao_canais}
+
+## 3. Landing Pages — Funil de Conversão
+
+Funil das LPs (lp.petbee.com.br):
+
+{tabela_funil_lp}
+
+Analise: quais etapas do funil LP têm maior drop-off? O bounce rate das LPs está dentro do benchmark?
+
+## 4. Onboarding — Gargalos de Conversão
+
+Funil de onboarding (app.petbee.com.br, steps 5-22):
+
+{tabela_onboarding}
+
+Analise: quais steps têm drop > 25%? Onde o onboarding está perdendo mais usuários? Sugira hipóteses para os 3 maiores gargalos.
+
+## 5. UTMs — Campanhas
+
+### Por campanha:
+{tabela_utm_campaigns}
+
+### Por source:
+{tabela_utm_sources}
+
+### Por medium:
+{tabela_utm_mediums}
+
+{variacao_utms}
+
+Analise: quais campanhas estão trazendo mais leads com melhor custo-benefício? Há campanhas com muitas sessões e zero conversão (desperdício)?
+
+## 6. Páginas Mais Acessadas
+
+{tabela_paginas}
+
+## 7. Funil Global
+
+{tabela_funil}
+
+---
+
+**Formato de resposta esperado:**
+1. **Resumo executivo** (3-4 bullets com os pontos mais importantes)
+2. **Análise de LPs** (performance, bounce, conversão, recomendações)
+3. **Gargalos do onboarding** (top 3 drops, hipóteses, ações)
+4. **Destaques de UTMs** (melhores e piores campanhas, onde investir mais/menos)
+5. **Alertas** (qualquer métrica fora dos benchmarks)
+6. **Ações recomendadas** (lista priorizada de 3-5 ações concretas)`;
 
         let userPrompt = body.userPrompt || defaultUserPrompt;
 
@@ -567,8 +708,13 @@ Variação vs período anterior:
           "{var_duracao}": varDuracao,
           "{tabela_kpis_gerais}": tabelaKPIs,
           "{tabela_canais}": tabelaCanais,
-          "{tabela_utms}": tabelaUtms,
+          "{tabela_utms}": tabelaUtmCampaigns,
+          "{tabela_utm_campaigns}": tabelaUtmCampaigns,
+          "{tabela_utm_sources}": tabelaUtmSources,
+          "{tabela_utm_mediums}": tabelaUtmMediums,
           "{tabela_funil}": tabelaFunil,
+          "{tabela_funil_lp}": tabelaFunilLP,
+          "{tabela_onboarding}": tabelaOnboarding,
           "{tabela_paginas}": tabelaPaginas,
           "{variacao_canais}": variacaoCanais,
           "{variacao_utms}": variacaoUtms,
