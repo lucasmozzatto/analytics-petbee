@@ -73,6 +73,20 @@ export function useGA4Data<T>(
 
 /* ===== Time Window Hook ===== */
 
+const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+/** Generates past month options dynamically (2-7 months ago) */
+function getPastMonthOptions(): TimeWindow[] {
+  const now = toZonedTime(new Date(), TZ);
+  const options: TimeWindow[] = [];
+  for (let i = 2; i <= 7; i++) {
+    const m = subMonths(now, i);
+    const label = `${MONTH_LABELS[m.getMonth()]}/${String(m.getFullYear()).slice(2)}`;
+    options.push({ label, value: `month_${i}` });
+  }
+  return options;
+}
+
 /** Available time window options */
 export const TIME_WINDOWS: TimeWindow[] = [
   { label: 'Hoje', value: 'today' },
@@ -82,6 +96,7 @@ export const TIME_WINDOWS: TimeWindow[] = [
   { label: '30 dias', value: '30d' },
   { label: 'Este mês', value: 'this_month' },
   { label: 'Mês passado', value: 'last_month' },
+  ...getPastMonthOptions(),
 ];
 
 interface UseTimeWindowResult {
@@ -159,9 +174,20 @@ export function useTimeWindow(defaultWindow = '7d', minDate?: string): UseTimeWi
         break;
       }
 
-      default:
-        start = subDays(yesterday, 6);
-        end = yesterday;
+      default: {
+        // Handle month_N (N months ago)
+        const monthMatch = window.match(/^month_(\d+)$/);
+        if (monthMatch) {
+          const n = parseInt(monthMatch[1], 10);
+          const target = subMonths(today, n);
+          start = startOfMonth(target);
+          end = endOfMonth(target);
+        } else {
+          start = subDays(yesterday, 6);
+          end = yesterday;
+        }
+        break;
+      }
     }
 
     let sd = format(start, 'yyyy-MM-dd');

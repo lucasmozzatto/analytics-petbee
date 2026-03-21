@@ -1,19 +1,9 @@
 import { useState } from 'react';
 import { formatDateBR } from '../lib/format';
+import { TIME_WINDOWS } from '../hooks/useGA4Data';
 
-interface TimeWindowOption {
-  label: string;
-  value: string;
-}
-
-const OPTIONS: TimeWindowOption[] = [
-  { label: 'Hoje', value: 'today' },
-  { label: 'Ontem', value: 'yesterday' },
-  { label: '7 dias', value: '7d' },
-  { label: '14 dias', value: '14d' },
-  { label: '30 dias', value: '30d' },
-  { label: 'Este mês', value: 'this_month' },
-  { label: 'Mês passado', value: 'last_month' },
+const OPTIONS = [
+  ...TIME_WINDOWS,
   { label: 'Personalizado', value: 'custom' },
 ];
 
