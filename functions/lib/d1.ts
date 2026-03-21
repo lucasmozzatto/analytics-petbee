@@ -1,5 +1,16 @@
 import type { SessionRow, ConversionRow, PageRow, PageConversionRow, DailyTotalRow, DailyConversionRow, OnboardingStepRow } from './ga4-api';
 
+/**
+ * Returns hostname variants for SQL filtering (with and without www.).
+ * e.g. 'petbee.com.br' → ['petbee.com.br', 'www.petbee.com.br']
+ */
+function hostnameVariants(hostname: string): [string, string] {
+  if (hostname.startsWith('www.')) {
+    return [hostname, hostname.slice(4)];
+  }
+  return [hostname, 'www.' + hostname];
+}
+
 // ── Sync Helpers ──
 
 /**
@@ -887,8 +898,9 @@ export async function queryFunnelPages(
   const binds: string[] = [startDate, endDate];
 
   if (hostname) {
-    where.push('hostname = ?');
-    binds.push(hostname);
+    const [h1, h2] = hostnameVariants(hostname);
+    where.push('hostname IN (?, ?)');
+    binds.push(h1, h2);
   }
 
   const result = await db
@@ -982,10 +994,11 @@ export async function queryPageFunnel(
   const eventsBinds: (string)[] = [startDate, endDate];
 
   if (hostname) {
-    visitorsWhere.push('hostname = ?');
-    visitorsBinds.push(hostname);
-    eventsWhere.push('hostname = ?');
-    eventsBinds.push(hostname);
+    const [h1, h2] = hostnameVariants(hostname);
+    visitorsWhere.push('hostname IN (?, ?)');
+    visitorsBinds.push(h1, h2);
+    eventsWhere.push('hostname IN (?, ?)');
+    eventsBinds.push(h1, h2);
   }
 
   if (pagePath && pagePath !== 'all') {
@@ -1029,7 +1042,7 @@ export async function queryPageFunnel(
   // Define step definitions based on hostname
   let allStepDefs: { name: string; event: string }[];
 
-  if (hostname === 'petbee.com.br') {
+  if (hostname === 'petbee.com.br' || hostname === 'www.petbee.com.br') {
     // Website: funil do quiz/simulador
     allStepDefs = [
       { name: 'Viram Simulador', event: 'quiz_view' },
