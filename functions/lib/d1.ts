@@ -616,9 +616,16 @@ export interface StepConversion {
   rate: number;
 }
 
+export interface FunnelGroup {
+  title: string;
+  steps: FunnelStep[];
+  stepConversions: StepConversion[];
+}
+
 export interface FunnelData {
   steps: FunnelStep[];
   stepConversions: StepConversion[];
+  funnels?: FunnelGroup[];
 }
 
 /**
@@ -1039,74 +1046,86 @@ export async function queryPageFunnel(
     eventCounts[row.event_name as string] = (row.total as number) ?? 0;
   }
 
-  // Define step definitions based on hostname
-  let allStepDefs: { name: string; event: string }[];
+  // Helper: build a funnel from step definitions
+  function buildFunnel(
+    title: string,
+    stepDefs: { name: string; event: string }[],
+    anchor: number
+  ): FunnelGroup {
+    const activeSteps = stepDefs.filter(
+      (def) => (eventCounts[def.event] ?? 0) > 0
+    );
 
+    const steps: FunnelStep[] = [
+      { name: 'Visitantes', event: 'page_view', count: anchor, rate: 100.0 },
+    ];
+    for (const def of activeSteps) {
+      const count = eventCounts[def.event] ?? 0;
+      steps.push({
+        name: def.name,
+        event: def.event,
+        count,
+        rate: anchor > 0 ? (count / anchor) * 100 : 0,
+      });
+    }
+
+    const stepConversions: StepConversion[] = [];
+    for (let i = 0; i < steps.length - 1; i++) {
+      const from = steps[i];
+      const to = steps[i + 1];
+      stepConversions.push({
+        from: from.name,
+        to: to.name,
+        rate: from.count > 0 ? (to.count / from.count) * 100 : 0,
+      });
+    }
+
+    return { title, steps, stepConversions };
+  }
+
+  // Website (petbee.com.br): 3 funis separados
   if (hostname === 'petbee.com.br' || hostname === 'www.petbee.com.br') {
-    // Website: funil do quiz/simulador
-    allStepDefs = [
+    const funnels: FunnelGroup[] = [];
+
+    const pricing = buildFunnel('Intenção de Compra — Pricing', [
+      { name: 'Ver Planos', event: 'view_plans_intent' },
+      { name: 'CTA Planos', event: 'cta_click' },
+    ], totalVisitors);
+    if (pricing.steps.length > 1) funnels.push(pricing);
+
+    const whatsapp = buildFunnel('Canal Alternativo — WhatsApp', [
+      { name: 'WhatsApp', event: 'whatsapp_click' },
+    ], totalVisitors);
+    if (whatsapp.steps.length > 1) funnels.push(whatsapp);
+
+    const quiz = buildFunnel('Quiz / Simulador de Custos', [
       { name: 'Viram Simulador', event: 'quiz_view' },
       { name: 'Selecionaram Pet', event: 'quiz_pet_selection' },
       { name: 'Selecionaram Cenário', event: 'quiz_scenario_selection' },
       { name: 'Viram Tabela Custos', event: 'quiz_cost_table_view' },
       { name: 'Início do Form', event: 'form_start' },
+      { name: 'Preencheram Form', event: 'quiz_form_interaction' },
       { name: 'Leads', event: 'generate_lead' },
-      // Ações alternativas (só aparecem se tiver dados)
-      { name: 'Ver Planos', event: 'view_plans_intent' },
-      { name: 'CTA Planos', event: 'cta_click' },
-      { name: 'WhatsApp', event: 'whatsapp_click' },
-    ];
-  } else {
-    // Default: funil e-commerce (LP e outros)
-    allStepDefs = [
-      { name: 'Leads', event: 'generate_lead' },
-      { name: 'Click WhatsApp', event: 'click_whatsapp' },
-      { name: 'Carrinho', event: 'add_to_cart' },
-      { name: 'Checkout', event: 'begin_checkout' },
-      { name: 'Pagamento', event: 'add_payment_info' },
-      { name: 'Venda', event: 'purchase' },
-    ];
+    ], totalVisitors);
+    if (quiz.steps.length > 1) funnels.push(quiz);
+
+    // Use first funnel (or empty) as the main steps for backwards compat
+    const main = funnels[0] ?? { steps: [], stepConversions: [] };
+    return { steps: main.steps, stepConversions: main.stepConversions, funnels };
   }
 
-  // Only include steps that have events for this page
-  const activeStepDefs = allStepDefs.filter(
-    (def) => (eventCounts[def.event] ?? 0) > 0
-  );
-
-  // Always start with Visitantes
-  const steps: FunnelStep[] = [
-    {
-      name: 'Visitantes',
-      event: 'page_view',
-      count: totalVisitors,
-      rate: 100.0,
-    },
+  // Default: funil e-commerce (LP e outros)
+  const defaultStepDefs = [
+    { name: 'Leads', event: 'generate_lead' },
+    { name: 'Click WhatsApp', event: 'click_whatsapp' },
+    { name: 'Carrinho', event: 'add_to_cart' },
+    { name: 'Checkout', event: 'begin_checkout' },
+    { name: 'Pagamento', event: 'add_payment_info' },
+    { name: 'Venda', event: 'purchase' },
   ];
 
-  // Add active conversion steps
-  for (const def of activeStepDefs) {
-    const count = eventCounts[def.event] ?? 0;
-    steps.push({
-      name: def.name,
-      event: def.event,
-      count,
-      rate: totalVisitors > 0 ? (count / totalVisitors) * 100 : 0,
-    });
-  }
-
-  // Calculate step-to-step conversions
-  const stepConversions: StepConversion[] = [];
-  for (let i = 0; i < steps.length - 1; i++) {
-    const from = steps[i];
-    const to = steps[i + 1];
-    stepConversions.push({
-      from: from.name,
-      to: to.name,
-      rate: from.count > 0 ? (to.count / from.count) * 100 : 0,
-    });
-  }
-
-  return { steps, stepConversions };
+  const result = buildFunnel('', defaultStepDefs, totalVisitors);
+  return { steps: result.steps, stepConversions: result.stepConversions };
 }
 
 // ── Onboarding Steps Sync & Query ──

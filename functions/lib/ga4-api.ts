@@ -227,6 +227,7 @@ export const CONVERSION_EVENTS = [
   'quiz_scenario_selection',
   'quiz_cost_table_view',
   'form_start',
+  'quiz_form_interaction',
   'view_plans_intent',
   'cta_click',
   'whatsapp_click',

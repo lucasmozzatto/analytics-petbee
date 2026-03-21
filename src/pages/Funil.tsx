@@ -188,68 +188,99 @@ export default function Funil() {
 
       {data && !loading && (
         <>
-          <FunnelChart
-            steps={data.steps}
-            stepConversions={data.stepConversions}
-            conversionTarget={selectedDomain ? 'Leads' : undefined}
-          />
-
-          {/* Drop-off table */}
-          {data.stepConversions.length > 0 && (
-            <div
-              className="rounded-xl overflow-hidden fade-up"
-              style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
-            >
-              <div className="p-4 pb-0">
-                <h3 className="text-xs font-semibold tracking-wider" style={{ color: 'var(--text-muted)' }}>
-                  DROP-OFF POR ETAPA
-                </h3>
+          {/* Multiple funnels (website) */}
+          {data.funnels && data.funnels.length > 0 ? (
+            data.funnels.map((funnel, fi) => (
+              <div key={funnel.title} className="space-y-4" style={{ animationDelay: `${fi * 0.08}s` }}>
+                <h2
+                  className="text-sm font-semibold tracking-wide fade-up"
+                  style={{ color: 'var(--text-dim)' }}
+                >
+                  {funnel.title}
+                </h2>
+                <FunnelChart
+                  steps={funnel.steps}
+                  stepConversions={funnel.stepConversions}
+                  conversionTarget="Leads"
+                />
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                      {['De', 'Para', 'Perdidos', 'Taxa Conversão'].map((h) => (
-                        <th
-                          key={h}
-                          className="px-4 py-3 text-left text-[10px] font-semibold tracking-wider"
-                          style={{ color: 'var(--text-muted)' }}
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.stepConversions.map((conv, i) => {
-                      const fromStep = data.steps.find((s) => s.name === conv.from);
-                      const toStep = data.steps.find((s) => s.name === conv.to);
-                      const lost = (fromStep?.count ?? 0) - (toStep?.count ?? 0);
-                      return (
-                        <tr
-                          key={`${conv.from}-${conv.to}`}
-                          className="fade-up"
-                          style={{
-                            borderBottom: '1px solid var(--border)',
-                            animationDelay: `${i * 0.04}s`,
-                          }}
-                        >
-                          <td className="px-4 py-3">{conv.from}</td>
-                          <td className="px-4 py-3">{conv.to}</td>
-                          <td className="px-4 py-3 text-right" style={{ fontFamily: 'var(--mono)', color: 'var(--red)' }}>
-                            -{formatNumber(lost)}
-                          </td>
-                          <td className="px-4 py-3 text-right" style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>
-                            {formatPercent(conv.rate)}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            ))
+          ) : (
+            /* Single funnel (LP / Todas) */
+            <FunnelChart
+              steps={data.steps}
+              stepConversions={data.stepConversions}
+              conversionTarget={selectedDomain ? 'Leads' : undefined}
+            />
           )}
+
+          {/* Drop-off table — uses funnels data or single funnel */}
+          {(() => {
+            const allSteps = data.funnels
+              ? data.funnels.flatMap((f) => f.steps)
+              : data.steps;
+            const allConversions = data.funnels
+              ? data.funnels.flatMap((f) => f.stepConversions)
+              : data.stepConversions;
+
+            if (allConversions.length === 0) return null;
+
+            return (
+              <div
+                className="rounded-xl overflow-hidden fade-up"
+                style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
+              >
+                <div className="p-4 pb-0">
+                  <h3 className="text-xs font-semibold tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                    DROP-OFF POR ETAPA
+                  </h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        {['De', 'Para', 'Perdidos', 'Taxa Conversão'].map((h) => (
+                          <th
+                            key={h}
+                            className="px-4 py-3 text-left text-[10px] font-semibold tracking-wider"
+                            style={{ color: 'var(--text-muted)' }}
+                          >
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allConversions.map((conv, i) => {
+                        const fromStep = allSteps.find((s) => s.name === conv.from);
+                        const toStep = allSteps.find((s) => s.name === conv.to);
+                        const lost = (fromStep?.count ?? 0) - (toStep?.count ?? 0);
+                        return (
+                          <tr
+                            key={`${conv.from}-${conv.to}-${i}`}
+                            className="fade-up"
+                            style={{
+                              borderBottom: '1px solid var(--border)',
+                              animationDelay: `${i * 0.04}s`,
+                            }}
+                          >
+                            <td className="px-4 py-3">{conv.from}</td>
+                            <td className="px-4 py-3">{conv.to}</td>
+                            <td className="px-4 py-3 text-right" style={{ fontFamily: 'var(--mono)', color: 'var(--red)' }}>
+                              -{formatNumber(lost)}
+                            </td>
+                            <td className="px-4 py-3 text-right" style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>
+                              {formatPercent(conv.rate)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
         </>
       )}
     </div>

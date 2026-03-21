@@ -77,9 +77,16 @@ export interface StepConversion {
   rate: number;
 }
 
+export interface FunnelGroup {
+  title: string;
+  steps: FunnelStep[];
+  stepConversions: StepConversion[];
+}
+
 export interface FunnelData {
   steps: FunnelStep[];
   stepConversions: StepConversion[];
+  funnels?: FunnelGroup[];
 }
 
 /* ===== Pages ===== */
