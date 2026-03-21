@@ -126,7 +126,7 @@ export default function FunnelChart({ steps, stepConversions, conversionTarget }
                 }}
               >
                 <div
-                  className="relative flex items-center justify-between px-6 py-4"
+                  className="relative flex items-center justify-center py-4"
                   style={{
                     width: `${widthPct}%`,
                     minWidth: '280px',
@@ -136,21 +136,15 @@ export default function FunnelChart({ steps, stepConversions, conversionTarget }
                     minHeight: '56px',
                   }}
                 >
-                  {/* Left: Step name */}
-                  <div className="z-10">
-                    <div className="text-sm font-semibold text-white">{step.name}</div>
+                  <div className="z-10 text-center">
+                    <div className="flex items-center justify-center gap-3">
+                      <span className="text-sm font-semibold text-white">{step.name}</span>
+                      <span className="text-lg font-bold text-white" style={{ fontFamily: 'var(--mono)' }}>
+                        {formatNumber(step.count)}
+                      </span>
+                    </div>
                     <div className="text-[10px] text-white/60" style={{ fontFamily: 'var(--mono)' }}>
-                      {step.event}
-                    </div>
-                  </div>
-
-                  {/* Right: Values */}
-                  <div className="z-10 text-right">
-                    <div className="text-lg font-bold text-white" style={{ fontFamily: 'var(--mono)' }}>
-                      {formatNumber(step.count)}
-                    </div>
-                    <div className="text-[10px] text-white/70" style={{ fontFamily: 'var(--mono)' }}>
-                      {formatPercent(step.rate)} do total
+                      {step.event} · {formatPercent(step.rate)} do total
                     </div>
                   </div>
                 </div>
