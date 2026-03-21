@@ -211,6 +211,7 @@ export interface ConversionRow {
 }
 
 export const CONVERSION_EVENTS = [
+  // E-commerce / onboarding
   'generate_lead',
   'click_whatsapp',
   'complete_registration',
@@ -220,6 +221,15 @@ export const CONVERSION_EVENTS = [
   'apply_coupon',
   'remove_from_cart',
   'purchase',
+  // Website quiz/simulador (petbee.com.br)
+  'quiz_view',
+  'quiz_pet_selection',
+  'quiz_scenario_selection',
+  'quiz_cost_table_view',
+  'form_start',
+  'view_plans_intent',
+  'cta_click',
+  'whatsapp_click',
 ];
 
 /**

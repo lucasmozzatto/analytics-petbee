@@ -1026,15 +1026,34 @@ export async function queryPageFunnel(
     eventCounts[row.event_name as string] = (row.total as number) ?? 0;
   }
 
-  // All possible funnel steps mapped by event name
-  const allStepDefs: { name: string; event: string }[] = [
-    { name: 'Leads', event: 'generate_lead' },
-    { name: 'Click WhatsApp', event: 'click_whatsapp' },
-    { name: 'Carrinho', event: 'add_to_cart' },
-    { name: 'Checkout', event: 'begin_checkout' },
-    { name: 'Pagamento', event: 'add_payment_info' },
-    { name: 'Venda', event: 'purchase' },
-  ];
+  // Define step definitions based on hostname
+  let allStepDefs: { name: string; event: string }[];
+
+  if (hostname === 'petbee.com.br') {
+    // Website: funil do quiz/simulador
+    allStepDefs = [
+      { name: 'Viram Simulador', event: 'quiz_view' },
+      { name: 'Selecionaram Pet', event: 'quiz_pet_selection' },
+      { name: 'Selecionaram Cenário', event: 'quiz_scenario_selection' },
+      { name: 'Viram Tabela Custos', event: 'quiz_cost_table_view' },
+      { name: 'Início do Form', event: 'form_start' },
+      { name: 'Leads', event: 'generate_lead' },
+      // Ações alternativas (só aparecem se tiver dados)
+      { name: 'Ver Planos', event: 'view_plans_intent' },
+      { name: 'CTA Planos', event: 'cta_click' },
+      { name: 'WhatsApp', event: 'whatsapp_click' },
+    ];
+  } else {
+    // Default: funil e-commerce (LP e outros)
+    allStepDefs = [
+      { name: 'Leads', event: 'generate_lead' },
+      { name: 'Click WhatsApp', event: 'click_whatsapp' },
+      { name: 'Carrinho', event: 'add_to_cart' },
+      { name: 'Checkout', event: 'begin_checkout' },
+      { name: 'Pagamento', event: 'add_payment_info' },
+      { name: 'Venda', event: 'purchase' },
+    ];
+  }
 
   // Only include steps that have events for this page
   const activeStepDefs = allStepDefs.filter(
@@ -1140,15 +1159,34 @@ export async function queryOnboardingFunnel(
 ): Promise<OnboardingFunnelData> {
   const result = await db
     .prepare(
-      `SELECT
-        step_number,
-        step_name,
-        SUM(event_count) AS event_count,
-        SUM(users) AS users
-      FROM ga4_onboarding_steps
-      WHERE date_ref >= ? AND date_ref <= ?
-      GROUP BY step_number
-      ORDER BY step_number ASC`
+      `WITH funnel_steps (step_number, step_name) AS (
+        VALUES
+          (5,  'customer'),
+          (6,  'pet-name'),
+          (7,  'pet-family'),
+          (8,  'address'),
+          (9,  'pet-details'),
+          (10, 'pet-breed'),
+          (13, 'coverage'),
+          (14, 'additional-coverage-vaccine'),
+          (15, 'additional-coverage-checkup'),
+          (16, 'additional-coverage-dental'),
+          (17, 'register'),
+          (18, 'confirm'),
+          (19, 'pet-summary'),
+          (20, 'summary')
+      )
+      SELECT
+        fs.step_number,
+        fs.step_name,
+        COALESCE(SUM(o.event_count), 0) AS event_count,
+        COALESCE(SUM(o.users), 0) AS users
+      FROM funnel_steps fs
+      LEFT JOIN ga4_onboarding_steps o
+        ON o.step_number = fs.step_number
+        AND o.date_ref >= ? AND o.date_ref <= ?
+      GROUP BY fs.step_number, fs.step_name
+      ORDER BY fs.step_number ASC`
     )
     .bind(startDate, endDate)
     .all();
@@ -1160,7 +1198,9 @@ export async function queryOnboardingFunnel(
     users: (row.users as number) ?? 0,
   }));
 
-  const totalStep1Users = rawSteps.length > 0 ? rawSteps[0].users : 0;
+  // Step 5 (customer) é a âncora do funil de novos clientes
+  const anchorStep = rawSteps.find(s => s.stepNumber === 5);
+  const totalStep1Users = anchorStep?.users ?? 0;
 
   const steps: OnboardingStep[] = rawSteps.map((step, i) => ({
     stepNumber: step.stepNumber,
