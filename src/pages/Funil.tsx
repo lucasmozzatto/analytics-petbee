@@ -22,6 +22,11 @@ export default function Funil() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
+  // Clamp startDate for website domain (tracking started 2026-03-21)
+  const WEBSITE_MIN_DATE = '2026-03-21';
+  const isWebsite = selectedDomain === 'petbee.com.br';
+  const effectiveStart = isWebsite && startDate < WEBSITE_MIN_DATE ? WEBSITE_MIN_DATE : startDate;
+
   // Load pages when domain is selected
   useEffect(() => {
     if (!selectedDomain) {
@@ -29,10 +34,10 @@ export default function Funil() {
       setSelectedPage('');
       return;
     }
-    getFunilPages(startDate, endDate, selectedDomain)
+    getFunilPages(effectiveStart, endDate, selectedDomain)
       .then((res) => setPages(res.pages))
       .catch(console.error);
-  }, [startDate, endDate, selectedDomain]);
+  }, [effectiveStart, endDate, selectedDomain]);
 
   // Reset selected page when domain changes
   useEffect(() => {
@@ -44,7 +49,7 @@ export default function Funil() {
   useEffect(() => {
     setLoading(true);
     getFunil(
-      startDate,
+      effectiveStart,
       endDate,
       compare,
       selectedPage || undefined,
@@ -53,7 +58,7 @@ export default function Funil() {
       .then(setData)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [startDate, endDate, compare, selectedDomain, selectedPage]);
+  }, [effectiveStart, endDate, compare, selectedDomain, selectedPage]);
 
   const filteredPages = search
     ? pages.filter((p) => p.toLowerCase().includes(search.toLowerCase()))
@@ -69,7 +74,7 @@ export default function Funil() {
       </div>
 
       <div className="flex items-center gap-4 flex-wrap">
-        <TimeWindowPicker value={window} onChange={setWindow} startDate={startDate} endDate={endDate} customStart={customStart} customEnd={customEnd} onCustomRange={setCustomRange} />
+        <TimeWindowPicker value={window} onChange={setWindow} startDate={effectiveStart} endDate={endDate} customStart={customStart} customEnd={customEnd} onCustomRange={setCustomRange} />
         <CompareToggle enabled={compare} onChange={setCompare} />
       </div>
 
