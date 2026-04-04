@@ -565,3 +565,194 @@ export async function fetchOnboardingSteps(
       users: parseInt(row.metricValues[1].value, 10) || 0,
     }));
 }
+
+// ── Device Stats Fetcher ──
+
+export interface DeviceStatsRow {
+  date: string;
+  deviceCategory: string;
+  sessions: number;
+  users: number;
+  newUsers: number;
+  bounceRate: number;
+  avgSessionDuration: number;
+  screenPageViews: number;
+}
+
+/**
+ * Fetches session metrics broken down by device category (mobile, desktop, tablet).
+ */
+export async function fetchDeviceStats(
+  env: Env,
+  startDate: string,
+  endDate: string
+): Promise<DeviceStatsRow[]> {
+  const response = await runReport(env, {
+    dateRanges: [{ startDate, endDate }],
+    dimensions: [
+      { name: 'date' },
+      { name: 'deviceCategory' },
+    ],
+    metrics: [
+      { name: 'sessions' },
+      { name: 'totalUsers' },
+      { name: 'newUsers' },
+      { name: 'bounceRate' },
+      { name: 'averageSessionDuration' },
+      { name: 'screenPageViews' },
+    ],
+  });
+
+  if (!response.rows) return [];
+
+  return response.rows.map((row) => ({
+    date: formatGA4Date(row.dimensionValues[0].value),
+    deviceCategory: row.dimensionValues[1].value || '',
+    sessions: parseInt(row.metricValues[0].value, 10) || 0,
+    users: parseInt(row.metricValues[1].value, 10) || 0,
+    newUsers: parseInt(row.metricValues[2].value, 10) || 0,
+    bounceRate: parseFloat(row.metricValues[3].value) || 0,
+    avgSessionDuration: parseFloat(row.metricValues[4].value) || 0,
+    screenPageViews: parseInt(row.metricValues[5].value, 10) || 0,
+  }));
+}
+
+// ── Device Conversions Fetcher ──
+
+export interface DeviceConversionRow {
+  date: string;
+  deviceCategory: string;
+  eventName: string;
+  eventCount: number;
+}
+
+/**
+ * Fetches conversion events broken down by device category.
+ */
+export async function fetchDeviceConversions(
+  env: Env,
+  startDate: string,
+  endDate: string
+): Promise<DeviceConversionRow[]> {
+  const response = await runReport(env, {
+    dateRanges: [{ startDate, endDate }],
+    dimensions: [
+      { name: 'date' },
+      { name: 'deviceCategory' },
+      { name: 'eventName' },
+    ],
+    metrics: [
+      { name: 'eventCount' },
+    ],
+    dimensionFilter: {
+      filter: {
+        fieldName: 'eventName',
+        inListFilter: {
+          values: CONVERSION_EVENTS,
+        },
+      },
+    },
+  });
+
+  if (!response.rows) return [];
+
+  return response.rows.map((row) => ({
+    date: formatGA4Date(row.dimensionValues[0].value),
+    deviceCategory: row.dimensionValues[1].value || '',
+    eventName: row.dimensionValues[2].value || '',
+    eventCount: parseInt(row.metricValues[0].value, 10) || 0,
+  }));
+}
+
+// ── Hourly Stats Fetcher ──
+
+export interface HourlyStatsRow {
+  date: string;
+  dayOfWeek: number;
+  hour: number;
+  sessions: number;
+  users: number;
+}
+
+/**
+ * Fetches session data broken down by day of week and hour.
+ */
+export async function fetchHourlyStats(
+  env: Env,
+  startDate: string,
+  endDate: string
+): Promise<HourlyStatsRow[]> {
+  const response = await runReport(env, {
+    dateRanges: [{ startDate, endDate }],
+    dimensions: [
+      { name: 'date' },
+      { name: 'dayOfWeek' },
+      { name: 'hour' },
+    ],
+    metrics: [
+      { name: 'sessions' },
+      { name: 'totalUsers' },
+    ],
+  });
+
+  if (!response.rows) return [];
+
+  return response.rows.map((row) => ({
+    date: formatGA4Date(row.dimensionValues[0].value),
+    dayOfWeek: parseInt(row.dimensionValues[1].value, 10) || 0,
+    hour: parseInt(row.dimensionValues[2].value, 10) || 0,
+    sessions: parseInt(row.metricValues[0].value, 10) || 0,
+    users: parseInt(row.metricValues[1].value, 10) || 0,
+  }));
+}
+
+// ── Geo Stats Fetcher ──
+
+export interface GeoStatsRow {
+  date: string;
+  region: string;
+  city: string;
+  sessions: number;
+  users: number;
+  newUsers: number;
+  bounceRate: number;
+  avgSessionDuration: number;
+}
+
+/**
+ * Fetches session data broken down by region and city.
+ */
+export async function fetchGeoStats(
+  env: Env,
+  startDate: string,
+  endDate: string
+): Promise<GeoStatsRow[]> {
+  const response = await runReport(env, {
+    dateRanges: [{ startDate, endDate }],
+    dimensions: [
+      { name: 'date' },
+      { name: 'region' },
+      { name: 'city' },
+    ],
+    metrics: [
+      { name: 'sessions' },
+      { name: 'totalUsers' },
+      { name: 'newUsers' },
+      { name: 'bounceRate' },
+      { name: 'averageSessionDuration' },
+    ],
+  });
+
+  if (!response.rows) return [];
+
+  return response.rows.map((row) => ({
+    date: formatGA4Date(row.dimensionValues[0].value),
+    region: row.dimensionValues[1].value || '',
+    city: row.dimensionValues[2].value || '',
+    sessions: parseInt(row.metricValues[0].value, 10) || 0,
+    users: parseInt(row.metricValues[1].value, 10) || 0,
+    newUsers: parseInt(row.metricValues[2].value, 10) || 0,
+    bounceRate: parseFloat(row.metricValues[3].value) || 0,
+    avgSessionDuration: parseFloat(row.metricValues[4].value) || 0,
+  }));
+}

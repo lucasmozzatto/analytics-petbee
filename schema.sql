@@ -114,6 +114,51 @@ CREATE TABLE IF NOT EXISTS ga4_onboarding_steps (
   PRIMARY KEY (date_ref, step_number)
 );
 
+-- GA4 Device Stats (tráfego diário por device category)
+CREATE TABLE IF NOT EXISTS ga4_device_stats (
+  date_ref TEXT NOT NULL,
+  device_category TEXT NOT NULL,
+  sessions INTEGER NOT NULL DEFAULT 0,
+  users INTEGER NOT NULL DEFAULT 0,
+  new_users INTEGER NOT NULL DEFAULT 0,
+  bounce_rate REAL NOT NULL DEFAULT 0,
+  avg_session_duration REAL NOT NULL DEFAULT 0,
+  screen_page_views INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (date_ref, device_category)
+);
+
+-- GA4 Device Conversions (conversões diárias por device category)
+CREATE TABLE IF NOT EXISTS ga4_device_conversions (
+  date_ref TEXT NOT NULL,
+  device_category TEXT NOT NULL,
+  event_name TEXT NOT NULL,
+  event_count INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (date_ref, device_category, event_name)
+);
+
+-- GA4 Hourly Stats (sessões por dia da semana × hora)
+CREATE TABLE IF NOT EXISTS ga4_hourly_stats (
+  date_ref TEXT NOT NULL,
+  day_of_week INTEGER NOT NULL,
+  hour INTEGER NOT NULL,
+  sessions INTEGER NOT NULL DEFAULT 0,
+  users INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (date_ref, day_of_week, hour)
+);
+
+-- GA4 Geo Stats (tráfego por região/cidade)
+CREATE TABLE IF NOT EXISTS ga4_geo_stats (
+  date_ref TEXT NOT NULL,
+  region TEXT NOT NULL DEFAULT '',
+  city TEXT NOT NULL DEFAULT '',
+  sessions INTEGER NOT NULL DEFAULT 0,
+  users INTEGER NOT NULL DEFAULT 0,
+  new_users INTEGER NOT NULL DEFAULT 0,
+  bounce_rate REAL NOT NULL DEFAULT 0,
+  avg_session_duration REAL NOT NULL DEFAULT 0,
+  PRIMARY KEY (date_ref, region, city)
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_sessions_date ON ga4_sessions(date_ref);
 CREATE INDEX IF NOT EXISTS idx_conversions_date ON ga4_conversions(date_ref);
@@ -126,3 +171,8 @@ CREATE INDEX IF NOT EXISTS idx_page_conversions_hostname ON ga4_page_conversions
 CREATE INDEX IF NOT EXISTS idx_page_conversions_source ON ga4_page_conversions(source, medium);
 CREATE INDEX IF NOT EXISTS idx_insights_created ON ai_insights(created_at);
 CREATE INDEX IF NOT EXISTS idx_onboarding_date ON ga4_onboarding_steps(date_ref);
+CREATE INDEX IF NOT EXISTS idx_device_stats_date ON ga4_device_stats(date_ref);
+CREATE INDEX IF NOT EXISTS idx_device_conversions_date ON ga4_device_conversions(date_ref);
+CREATE INDEX IF NOT EXISTS idx_hourly_stats_date ON ga4_hourly_stats(date_ref);
+CREATE INDEX IF NOT EXISTS idx_geo_stats_date ON ga4_geo_stats(date_ref);
+CREATE INDEX IF NOT EXISTS idx_geo_stats_region ON ga4_geo_stats(region);

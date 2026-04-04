@@ -167,6 +167,43 @@ export interface FunnelPageConfig {
   blocked: boolean;
 }
 
+/* ===== Devices ===== */
+
+export interface DeviceRow {
+  deviceCategory: string;
+  sessions: number;
+  users: number;
+  newUsers: number;
+  bounceRate: number;
+  avgSessionDuration: number;
+  screenPageViews: number;
+  leads: number;
+  contracts: number;
+  convRateLead: number;
+  convRateContract: number;
+}
+
+/* ===== Heatmap ===== */
+
+export interface HeatmapCell {
+  dayOfWeek: number;
+  hour: number;
+  sessions: number;
+  users: number;
+}
+
+/* ===== Geography ===== */
+
+export interface GeoRow {
+  region: string;
+  city: string;
+  sessions: number;
+  users: number;
+  newUsers: number;
+  bounceRate: number;
+  avgSessionDuration: number;
+}
+
 /* ===== Time Window ===== */
 
 export interface TimeWindow {

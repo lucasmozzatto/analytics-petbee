@@ -10,6 +10,9 @@ import type {
   InsightFull,
   InsightSummary,
   OnboardingFunnelData,
+  DeviceRow,
+  HeatmapCell,
+  GeoRow,
 } from '../types';
 
 /**
@@ -228,4 +231,41 @@ export function updateFunnelPageConfig(
     method: 'POST',
     body: JSON.stringify({ blocked, unblocked }),
   });
+}
+
+/**
+ * GET /api/metrics/dispositivos
+ * Returns device stats with sessions, users, conversions per device category.
+ */
+export function getDispositivos(
+  startDate: string,
+  endDate: string
+): Promise<DeviceRow[]> {
+  const params = new URLSearchParams({ startDate, endDate });
+  return fetchAPI<DeviceRow[]>(`/api/metrics/dispositivos?${params.toString()}`);
+}
+
+/**
+ * GET /api/metrics/horarios
+ * Returns heatmap data: sessions by day of week × hour.
+ */
+export function getHorarios(
+  startDate: string,
+  endDate: string
+): Promise<HeatmapCell[]> {
+  const params = new URLSearchParams({ startDate, endDate });
+  return fetchAPI<HeatmapCell[]>(`/api/metrics/horarios?${params.toString()}`);
+}
+
+/**
+ * GET /api/metrics/geografia
+ * Returns geo stats grouped by region or city.
+ */
+export function getGeografia(
+  startDate: string,
+  endDate: string,
+  groupBy: 'region' | 'city' = 'region'
+): Promise<GeoRow[]> {
+  const params = new URLSearchParams({ startDate, endDate, groupBy });
+  return fetchAPI<GeoRow[]>(`/api/metrics/geografia?${params.toString()}`);
 }

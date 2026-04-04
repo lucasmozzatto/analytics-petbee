@@ -7,6 +7,9 @@ const NAV_ITEMS = [
   { to: '/funil', icon: '▽', label: 'Funil' },
   { to: '/onboarding', icon: '◇', label: 'Onboarding' },
   { to: '/paginas', icon: '≡', label: 'Páginas' },
+  { to: '/dispositivos', icon: '◫', label: 'Dispositivos' },
+  { to: '/horarios', icon: '◔', label: 'Horários' },
+  { to: '/geografia', icon: '◎', label: 'Geografia' },
 ];
 
 export default function Sidebar() {

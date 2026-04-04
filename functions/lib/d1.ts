@@ -1,4 +1,4 @@
-import type { SessionRow, ConversionRow, PageRow, PageConversionRow, DailyTotalRow, DailyConversionRow, OnboardingStepRow } from './ga4-api';
+import type { SessionRow, ConversionRow, PageRow, PageConversionRow, DailyTotalRow, DailyConversionRow, OnboardingStepRow, DeviceStatsRow, DeviceConversionRow, HourlyStatsRow, GeoStatsRow } from './ga4-api';
 
 /**
  * Returns hostname variants for SQL filtering (with and without www.).
@@ -1343,6 +1343,311 @@ export async function queryOnboardingFunnel(
   }));
 
   return { steps, totalStep1Users };
+}
+
+// ── Device Stats Sync & Query ──
+
+/**
+ * Upserts device stats rows into ga4_device_stats.
+ */
+export async function syncDeviceStats(db: D1Database, rows: DeviceStatsRow[]): Promise<number> {
+  if (rows.length === 0) return 0;
+
+  const sql = `
+    INSERT INTO ga4_device_stats (
+      date_ref, device_category, sessions, users, new_users,
+      bounce_rate, avg_session_duration, screen_page_views
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (date_ref, device_category)
+    DO UPDATE SET
+      sessions = excluded.sessions,
+      users = excluded.users,
+      new_users = excluded.new_users,
+      bounce_rate = excluded.bounce_rate,
+      avg_session_duration = excluded.avg_session_duration,
+      screen_page_views = excluded.screen_page_views
+  `;
+
+  const chunks = chunkArray(rows, 100);
+  for (const chunk of chunks) {
+    const stmts = chunk.map((r) =>
+      db.prepare(sql).bind(
+        r.date, r.deviceCategory, r.sessions, r.users, r.newUsers,
+        r.bounceRate, r.avgSessionDuration, r.screenPageViews
+      )
+    );
+    await db.batch(stmts);
+  }
+
+  return rows.length;
+}
+
+/**
+ * Upserts device conversion rows into ga4_device_conversions.
+ */
+export async function syncDeviceConversions(db: D1Database, rows: DeviceConversionRow[]): Promise<number> {
+  if (rows.length === 0) return 0;
+
+  const sql = `
+    INSERT INTO ga4_device_conversions (
+      date_ref, device_category, event_name, event_count
+    ) VALUES (?, ?, ?, ?)
+    ON CONFLICT (date_ref, device_category, event_name)
+    DO UPDATE SET
+      event_count = excluded.event_count
+  `;
+
+  const chunks = chunkArray(rows, 100);
+  for (const chunk of chunks) {
+    const stmts = chunk.map((r) =>
+      db.prepare(sql).bind(r.date, r.deviceCategory, r.eventName, r.eventCount)
+    );
+    await db.batch(stmts);
+  }
+
+  return rows.length;
+}
+
+export interface DeviceDataRow {
+  deviceCategory: string;
+  sessions: number;
+  users: number;
+  newUsers: number;
+  bounceRate: number;
+  avgSessionDuration: number;
+  screenPageViews: number;
+  leads: number;
+  contracts: number;
+  convRateLead: number;
+  convRateContract: number;
+}
+
+/**
+ * Returns device stats with leads/contracts joined from device conversions.
+ */
+export async function queryByDevice(
+  db: D1Database,
+  startDate: string,
+  endDate: string
+): Promise<DeviceDataRow[]> {
+  const result = await db
+    .prepare(
+      `SELECT
+        s.device_category,
+        SUM(s.sessions) AS sessions,
+        SUM(s.users) AS users,
+        SUM(s.new_users) AS new_users,
+        CASE WHEN SUM(s.sessions) > 0
+          THEN SUM(s.bounce_rate * s.sessions) / SUM(s.sessions)
+          ELSE 0
+        END AS bounce_rate,
+        CASE WHEN SUM(s.sessions) > 0
+          THEN SUM(s.avg_session_duration * s.sessions) / SUM(s.sessions)
+          ELSE 0
+        END AS avg_session_duration,
+        SUM(s.screen_page_views) AS screen_page_views,
+        COALESCE(leads.total, 0) AS leads,
+        COALESCE(contracts.total, 0) AS contracts
+      FROM ga4_device_stats s
+      LEFT JOIN (
+        SELECT device_category, SUM(event_count) AS total
+        FROM ga4_device_conversions
+        WHERE date_ref >= ? AND date_ref <= ? AND event_name = 'generate_lead'
+        GROUP BY device_category
+      ) leads ON s.device_category = leads.device_category
+      LEFT JOIN (
+        SELECT device_category, SUM(event_count) AS total
+        FROM ga4_device_conversions
+        WHERE date_ref >= ? AND date_ref <= ? AND event_name = 'purchase'
+        GROUP BY device_category
+      ) contracts ON s.device_category = contracts.device_category
+      WHERE s.date_ref >= ? AND s.date_ref <= ?
+      GROUP BY s.device_category
+      ORDER BY sessions DESC`
+    )
+    .bind(startDate, endDate, startDate, endDate, startDate, endDate)
+    .all();
+
+  return (result.results as Record<string, unknown>[]).map((row) => {
+    const sessions = (row.sessions as number) ?? 0;
+    const leads = (row.leads as number) ?? 0;
+    const contracts = (row.contracts as number) ?? 0;
+    return {
+      deviceCategory: row.device_category as string,
+      sessions,
+      users: (row.users as number) ?? 0,
+      newUsers: (row.new_users as number) ?? 0,
+      bounceRate: ((row.bounce_rate as number) ?? 0) * 100,
+      avgSessionDuration: (row.avg_session_duration as number) ?? 0,
+      screenPageViews: (row.screen_page_views as number) ?? 0,
+      leads,
+      contracts,
+      convRateLead: sessions > 0 ? (leads / sessions) * 100 : 0,
+      convRateContract: sessions > 0 ? (contracts / sessions) * 100 : 0,
+    };
+  });
+}
+
+// ── Hourly Stats Sync & Query ──
+
+/**
+ * Upserts hourly stats rows into ga4_hourly_stats.
+ */
+export async function syncHourlyStats(db: D1Database, rows: HourlyStatsRow[]): Promise<number> {
+  if (rows.length === 0) return 0;
+
+  const sql = `
+    INSERT INTO ga4_hourly_stats (
+      date_ref, day_of_week, hour, sessions, users
+    ) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT (date_ref, day_of_week, hour)
+    DO UPDATE SET
+      sessions = excluded.sessions,
+      users = excluded.users
+  `;
+
+  const chunks = chunkArray(rows, 100);
+  for (const chunk of chunks) {
+    const stmts = chunk.map((r) =>
+      db.prepare(sql).bind(r.date, r.dayOfWeek, r.hour, r.sessions, r.users)
+    );
+    await db.batch(stmts);
+  }
+
+  return rows.length;
+}
+
+export interface HeatmapCell {
+  dayOfWeek: number;
+  hour: number;
+  sessions: number;
+  users: number;
+}
+
+/**
+ * Returns aggregated heatmap data: sessions/users by day_of_week × hour.
+ */
+export async function queryHourlyHeatmap(
+  db: D1Database,
+  startDate: string,
+  endDate: string
+): Promise<HeatmapCell[]> {
+  const result = await db
+    .prepare(
+      `SELECT
+        day_of_week,
+        hour,
+        SUM(sessions) AS sessions,
+        SUM(users) AS users
+      FROM ga4_hourly_stats
+      WHERE date_ref >= ? AND date_ref <= ?
+      GROUP BY day_of_week, hour
+      ORDER BY day_of_week ASC, hour ASC`
+    )
+    .bind(startDate, endDate)
+    .all();
+
+  return (result.results as Record<string, unknown>[]).map((row) => ({
+    dayOfWeek: (row.day_of_week as number) ?? 0,
+    hour: (row.hour as number) ?? 0,
+    sessions: (row.sessions as number) ?? 0,
+    users: (row.users as number) ?? 0,
+  }));
+}
+
+// ── Geo Stats Sync & Query ──
+
+/**
+ * Upserts geo stats rows into ga4_geo_stats.
+ */
+export async function syncGeoStats(db: D1Database, rows: GeoStatsRow[]): Promise<number> {
+  if (rows.length === 0) return 0;
+
+  const sql = `
+    INSERT INTO ga4_geo_stats (
+      date_ref, region, city, sessions, users, new_users,
+      bounce_rate, avg_session_duration
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (date_ref, region, city)
+    DO UPDATE SET
+      sessions = excluded.sessions,
+      users = excluded.users,
+      new_users = excluded.new_users,
+      bounce_rate = excluded.bounce_rate,
+      avg_session_duration = excluded.avg_session_duration
+  `;
+
+  const chunks = chunkArray(rows, 100);
+  for (const chunk of chunks) {
+    const stmts = chunk.map((r) =>
+      db.prepare(sql).bind(
+        r.date, r.region, r.city, r.sessions, r.users, r.newUsers,
+        r.bounceRate, r.avgSessionDuration
+      )
+    );
+    await db.batch(stmts);
+  }
+
+  return rows.length;
+}
+
+export interface GeoDataRow {
+  region: string;
+  city: string;
+  sessions: number;
+  users: number;
+  newUsers: number;
+  bounceRate: number;
+  avgSessionDuration: number;
+}
+
+/**
+ * Returns geo stats grouped by region or city.
+ */
+export async function queryByGeo(
+  db: D1Database,
+  startDate: string,
+  endDate: string,
+  groupBy: 'region' | 'city' = 'region'
+): Promise<GeoDataRow[]> {
+  const selectCols = groupBy === 'region'
+    ? `region, '' AS city`
+    : `region, city`;
+  const groupCols = groupBy === 'region' ? 'region' : 'region, city';
+
+  const result = await db
+    .prepare(
+      `SELECT
+        ${selectCols},
+        SUM(sessions) AS sessions,
+        SUM(users) AS users,
+        SUM(new_users) AS new_users,
+        CASE WHEN SUM(sessions) > 0
+          THEN SUM(bounce_rate * sessions) / SUM(sessions)
+          ELSE 0
+        END AS bounce_rate,
+        CASE WHEN SUM(sessions) > 0
+          THEN SUM(avg_session_duration * sessions) / SUM(sessions)
+          ELSE 0
+        END AS avg_session_duration
+      FROM ga4_geo_stats
+      WHERE date_ref >= ? AND date_ref <= ?
+      GROUP BY ${groupCols}
+      ORDER BY sessions DESC
+      LIMIT 50`
+    )
+    .bind(startDate, endDate)
+    .all();
+
+  return (result.results as Record<string, unknown>[]).map((row) => ({
+    region: (row.region as string) ?? '',
+    city: (row.city as string) ?? '',
+    sessions: (row.sessions as number) ?? 0,
+    users: (row.users as number) ?? 0,
+    newUsers: (row.new_users as number) ?? 0,
+    bounceRate: ((row.bounce_rate as number) ?? 0) * 100,
+    avgSessionDuration: (row.avg_session_duration as number) ?? 0,
+  }));
 }
 
 // ── Internal Helpers ──

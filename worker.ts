@@ -8,6 +8,10 @@ import {
   fetchDailyTotals,
   fetchDailyConversions,
   fetchOnboardingSteps,
+  fetchDeviceStats,
+  fetchDeviceConversions,
+  fetchHourlyStats,
+  fetchGeoStats,
 } from "./functions/lib/ga4-api";
 import {
   todaySP,
@@ -22,6 +26,10 @@ import {
   syncDailyTotals,
   syncDailyConversions,
   syncOnboardingSteps,
+  syncDeviceStats,
+  syncDeviceConversions,
+  syncHourlyStats,
+  syncGeoStats,
   queryKPIs,
   queryTimeseries,
   queryByChannel,
@@ -38,6 +46,9 @@ import {
   queryInsight,
   saveInsight,
   queryOnboardingFunnel,
+  queryByDevice,
+  queryHourlyHeatmap,
+  queryByGeo,
 } from "./functions/lib/d1";
 
 import type {
@@ -331,6 +342,42 @@ export default {
         }
 
         return jsonResponse(result);
+      }
+
+      // ────────────────────────────────────────────────
+      // GET /api/metrics/dispositivos
+      // ────────────────────────────────────────────────
+      if (pathname === "/api/metrics/dispositivos" && method === "GET") {
+        const { startDate, endDate } = getDateParams(url);
+        const data = await queryByDevice(env.DB, startDate, endDate);
+        return jsonResponse(data);
+      }
+
+      // ────────────────────────────────────────────────
+      // GET /api/metrics/horarios
+      // ────────────────────────────────────────────────
+      if (pathname === "/api/metrics/horarios" && method === "GET") {
+        const { startDate, endDate } = getDateParams(url);
+        const data = await queryHourlyHeatmap(env.DB, startDate, endDate);
+        return jsonResponse(data);
+      }
+
+      // ────────────────────────────────────────────────
+      // GET /api/metrics/geografia
+      // ────────────────────────────────────────────────
+      if (pathname === "/api/metrics/geografia" && method === "GET") {
+        const { startDate, endDate } = getDateParams(url);
+        const groupBy = (url.searchParams.get("groupBy") ?? "region") as
+          | "region"
+          | "city";
+        if (groupBy !== "region" && groupBy !== "city") {
+          return errorResponse(
+            "Invalid groupBy. Must be 'region' or 'city'",
+            400,
+          );
+        }
+        const data = await queryByGeo(env.DB, startDate, endDate, groupBy);
+        return jsonResponse(data);
       }
 
       // ────────────────────────────────────────────────
@@ -880,6 +927,10 @@ Analise: quais campanhas estão trazendo mais leads com melhor custo-benefício?
           dailyTotals,
           dailyConversions,
           onboardingSteps,
+          deviceStats,
+          deviceConversions,
+          hourlyStats,
+          geoStats,
         ] = await Promise.all([
           fetchSessions(env, startDate, endDate),
           fetchConversions(env, startDate, endDate),
@@ -888,6 +939,10 @@ Analise: quais campanhas estão trazendo mais leads com melhor custo-benefício?
           fetchDailyTotals(env, startDate, endDate),
           fetchDailyConversions(env, startDate, endDate),
           fetchOnboardingSteps(env, startDate, endDate),
+          fetchDeviceStats(env, startDate, endDate),
+          fetchDeviceConversions(env, startDate, endDate),
+          fetchHourlyStats(env, startDate, endDate),
+          fetchGeoStats(env, startDate, endDate),
         ]);
 
         // Sync all to D1
@@ -899,6 +954,10 @@ Analise: quais campanhas estão trazendo mais leads com melhor custo-benefício?
           syncedDailyTotals,
           syncedDailyConversions,
           syncedOnboardingSteps,
+          syncedDeviceStats,
+          syncedDeviceConversions,
+          syncedHourlyStats,
+          syncedGeoStats,
         ] = await Promise.all([
           syncSessions(env.DB, sessions),
           syncConversions(env.DB, conversions),
@@ -907,6 +966,10 @@ Analise: quais campanhas estão trazendo mais leads com melhor custo-benefício?
           syncDailyTotals(env.DB, dailyTotals),
           syncDailyConversions(env.DB, dailyConversions),
           syncOnboardingSteps(env.DB, onboardingSteps),
+          syncDeviceStats(env.DB, deviceStats),
+          syncDeviceConversions(env.DB, deviceConversions),
+          syncHourlyStats(env.DB, hourlyStats),
+          syncGeoStats(env.DB, geoStats),
         ]);
 
         return jsonResponse({
@@ -919,6 +982,10 @@ Analise: quais campanhas estão trazendo mais leads com melhor custo-benefício?
             dailyTotals: syncedDailyTotals,
             dailyConversions: syncedDailyConversions,
             onboardingSteps: syncedOnboardingSteps,
+            deviceStats: syncedDeviceStats,
+            deviceConversions: syncedDeviceConversions,
+            hourlyStats: syncedHourlyStats,
+            geoStats: syncedGeoStats,
           },
           dateRange: { startDate, endDate },
         });
