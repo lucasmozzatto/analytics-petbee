@@ -4,6 +4,7 @@ import type {
   UTMRow,
   UTMDimension,
   FunnelData,
+  FunnelSource,
   FunnelPageConfig,
   PageRow,
   InsightFull,
@@ -99,12 +100,14 @@ export function getFunil(
   endDate: string,
   compare?: boolean,
   page?: string,
-  hostname?: string
+  hostname?: string,
+  source?: string
 ): Promise<FunnelData> {
   const params = new URLSearchParams({ startDate, endDate });
   if (compare) params.set('compare', 'true');
   if (page) params.set('page', page);
   if (hostname) params.set('hostname', hostname);
+  if (source) params.set('source', source);
   return fetchAPI<FunnelData>(`/api/metrics/funil?${params.toString()}`);
 }
 
@@ -120,6 +123,22 @@ export function getFunilPages(
   const params = new URLSearchParams({ startDate, endDate });
   if (hostname) params.set('hostname', hostname);
   return fetchAPI<{ pages: string[] }>(`/api/metrics/funil/pages?${params.toString()}`);
+}
+
+/**
+ * GET /api/metrics/funil/sources
+ * Returns list of sources with lead counts for the funnel filter.
+ */
+export function getFunilSources(
+  startDate: string,
+  endDate: string,
+  hostname?: string,
+  page?: string
+): Promise<{ sources: FunnelSource[] }> {
+  const params = new URLSearchParams({ startDate, endDate });
+  if (hostname) params.set('hostname', hostname);
+  if (page) params.set('page', page);
+  return fetchAPI<{ sources: FunnelSource[] }>(`/api/metrics/funil/sources?${params.toString()}`);
 }
 
 /**

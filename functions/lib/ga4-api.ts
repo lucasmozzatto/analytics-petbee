@@ -442,6 +442,8 @@ export interface PageConversionRow {
   eventName: string;
   pagePath: string;
   hostname: string;
+  source: string;
+  medium: string;
   eventCount: number;
   eventValue: number;
 }
@@ -464,6 +466,8 @@ export async function fetchPageConversions(
       { name: 'eventName' },
       { name: 'pagePath' },
       { name: 'hostName' },
+      { name: 'sessionSource' },
+      { name: 'sessionMedium' },
     ],
     metrics: [
       { name: 'eventCount' },
@@ -486,6 +490,8 @@ export async function fetchPageConversions(
     eventName: row.dimensionValues[1].value || '',
     pagePath: row.dimensionValues[2].value || '',
     hostname: row.dimensionValues[3].value || '',
+    source: row.dimensionValues[4].value || '',
+    medium: row.dimensionValues[5].value || '',
     eventCount: parseInt(row.metricValues[0].value, 10) || 0,
     eventValue: parseFloat(row.metricValues[1].value) || 0,
   }));

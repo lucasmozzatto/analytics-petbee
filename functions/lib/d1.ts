@@ -865,9 +865,9 @@ export async function syncPageConversions(db: D1Database, rows: PageConversionRo
 
   const sql = `
     INSERT INTO ga4_page_conversions (
-      date_ref, event_name, hostname, page_path, event_count, event_value
-    ) VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT (date_ref, event_name, hostname, page_path)
+      date_ref, event_name, hostname, page_path, source, medium, event_count, event_value
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (date_ref, event_name, hostname, page_path, source, medium)
     DO UPDATE SET
       event_count = excluded.event_count,
       event_value = excluded.event_value
@@ -881,6 +881,8 @@ export async function syncPageConversions(db: D1Database, rows: PageConversionRo
         r.eventName,
         r.hostname,
         r.pagePath,
+        r.source,
+        r.medium,
         r.eventCount,
         r.eventValue
       )
@@ -987,7 +989,8 @@ export async function queryPageFunnel(
   startDate: string,
   endDate: string,
   pagePath?: string,
-  hostname?: string
+  hostname?: string,
+  source?: string
 ): Promise<FunnelData> {
   // No filter — use the global funnel
   if ((!pagePath || pagePath === 'all') && !hostname) {
@@ -1014,6 +1017,11 @@ export async function queryPageFunnel(
     visitorsBinds.push(likePattern);
     eventsWhere.push('page_path LIKE ?');
     eventsBinds.push(likePattern);
+  }
+
+  if (source) {
+    eventsWhere.push('source LIKE ?');
+    eventsBinds.push(source + '%');
   }
 
   // Get page visitors (screen_page_views) from ga4_pages
@@ -1126,6 +1134,57 @@ export async function queryPageFunnel(
 
   const result = buildFunnel('', defaultStepDefs, totalVisitors);
   return { steps: result.steps, stepConversions: result.stepConversions };
+}
+
+// ── Funnel Sources Query ──
+
+export interface FunnelSource {
+  source: string;
+  leads: number;
+}
+
+/**
+ * Returns distinct sources with lead counts for the given funnel filters.
+ * Allows the frontend to show a source selector with lead badges.
+ */
+export async function queryPageFunnelSources(
+  db: D1Database,
+  startDate: string,
+  endDate: string,
+  hostname?: string,
+  pagePath?: string
+): Promise<FunnelSource[]> {
+  const where: string[] = ['date_ref >= ?', 'date_ref <= ?', "source != ''", "source != '(not set)'"];
+  const binds: string[] = [startDate, endDate];
+
+  if (hostname) {
+    const [h1, h2] = hostnameVariants(hostname);
+    where.push('hostname IN (?, ?)');
+    binds.push(h1, h2);
+  }
+
+  if (pagePath && pagePath !== 'all') {
+    where.push('page_path LIKE ?');
+    binds.push(pagePath + '%');
+  }
+
+  const result = await db
+    .prepare(
+      `SELECT source, SUM(event_count) AS leads
+      FROM ga4_page_conversions
+      WHERE ${where.join(' AND ')}
+        AND event_name = 'generate_lead'
+      GROUP BY source
+      HAVING leads > 0
+      ORDER BY leads DESC`
+    )
+    .bind(...binds)
+    .all();
+
+  return (result.results as Record<string, unknown>[]).map((row) => ({
+    source: row.source as string,
+    leads: (row.leads as number) ?? 0,
+  }));
 }
 
 // ── Onboarding Steps Sync & Query ──

@@ -30,6 +30,7 @@ import {
   queryFunnel,
   queryPageFunnel,
   queryFunnelPages,
+  queryPageFunnelSources,
   queryBlockedFunnelPages,
   updateBlockedFunnelPages,
   queryPages,
@@ -243,6 +244,23 @@ export default {
       }
 
       // ────────────────────────────────────────────────
+      // GET /api/metrics/funil/sources
+      // ────────────────────────────────────────────────
+      if (pathname === "/api/metrics/funil/sources" && method === "GET") {
+        const { startDate, endDate } = getDateParams(url);
+        const hostname = url.searchParams.get("hostname") ?? undefined;
+        const pagePath = url.searchParams.get("page") ?? undefined;
+        const sources = await queryPageFunnelSources(
+          env.DB,
+          startDate,
+          endDate,
+          hostname,
+          pagePath,
+        );
+        return jsonResponse({ sources });
+      }
+
+      // ────────────────────────────────────────────────
       // GET /api/metrics/funil
       // ────────────────────────────────────────────────
       if (pathname === "/api/metrics/funil" && method === "GET") {
@@ -250,6 +268,7 @@ export default {
         const compare = url.searchParams.get("compare") === "true";
         const pagePath = url.searchParams.get("page") ?? undefined;
         const hostname = url.searchParams.get("hostname") ?? undefined;
+        const source = url.searchParams.get("source") ?? undefined;
 
         const funnel = await queryPageFunnel(
           env.DB,
@@ -257,6 +276,7 @@ export default {
           endDate,
           pagePath,
           hostname,
+          source,
         );
 
         const result: Record<string, unknown> = {
@@ -272,6 +292,7 @@ export default {
             prev.endDate,
             pagePath,
             hostname,
+            source,
           );
           result.previous = {
             steps: previousFunnel.steps,

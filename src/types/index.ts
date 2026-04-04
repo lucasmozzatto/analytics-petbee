@@ -89,6 +89,13 @@ export interface FunnelData {
   funnels?: FunnelGroup[];
 }
 
+/* ===== Funnel Sources ===== */
+
+export interface FunnelSource {
+  source: string;
+  leads: number;
+}
+
 /* ===== Pages ===== */
 
 export interface PageRow {

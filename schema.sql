@@ -45,15 +45,17 @@ CREATE TABLE IF NOT EXISTS ga4_pages (
   PRIMARY KEY (date_ref, hostname, page_path)
 );
 
--- GA4 Page Conversions (eventos de conversão diários por hostname + página)
+-- GA4 Page Conversions (eventos de conversão diários por hostname + página + source/medium)
 CREATE TABLE IF NOT EXISTS ga4_page_conversions (
   date_ref TEXT NOT NULL,
   event_name TEXT NOT NULL,
   hostname TEXT NOT NULL DEFAULT '',
   page_path TEXT NOT NULL,
+  source TEXT NOT NULL DEFAULT '',
+  medium TEXT NOT NULL DEFAULT '',
   event_count INTEGER NOT NULL DEFAULT 0,
   event_value REAL NOT NULL DEFAULT 0,
-  PRIMARY KEY (date_ref, event_name, hostname, page_path)
+  PRIMARY KEY (date_ref, event_name, hostname, page_path, source, medium)
 );
 
 -- GA4 Daily Totals (agregado sem breakdown UTM — usuários deduplicated)
@@ -121,5 +123,6 @@ CREATE INDEX IF NOT EXISTS idx_pages_hostname ON ga4_pages(hostname);
 CREATE INDEX IF NOT EXISTS idx_page_conversions_date ON ga4_page_conversions(date_ref);
 CREATE INDEX IF NOT EXISTS idx_page_conversions_page ON ga4_page_conversions(page_path);
 CREATE INDEX IF NOT EXISTS idx_page_conversions_hostname ON ga4_page_conversions(hostname);
+CREATE INDEX IF NOT EXISTS idx_page_conversions_source ON ga4_page_conversions(source, medium);
 CREATE INDEX IF NOT EXISTS idx_insights_created ON ai_insights(created_at);
 CREATE INDEX IF NOT EXISTS idx_onboarding_date ON ga4_onboarding_steps(date_ref);

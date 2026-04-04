@@ -188,13 +188,13 @@ Após o primeiro deploy:
 1. Cloudflare Dashboard → seu projeto → **Settings** → **Variables and secrets**
 2. Adicionar como **Secret** (tipo Encrypt):
 
-| Variável | O que é | Exemplo |
-|----------|---------|---------|
-| `GA4_PROPERTY_ID` | ID numérico da propriedade GA4 (sem prefixo) | `123456789` |
-| `GOOGLE_CLIENT_EMAIL` | E-mail da Service Account | `ga4-dashboard-reader@projeto.iam.gserviceaccount.com` |
-| `GOOGLE_PRIVATE_KEY` | Chave privada RSA da Service Account (com `\n`) | `-----BEGIN PRIVATE KEY-----\n...` |
-| `SYNC_SECRET` | Bearer token para proteger o endpoint sync | Qualquer string aleatória |
-| `ANTHROPIC_API_KEY` | API key da Anthropic para análises AI | `sk-ant-...` |
+| Variável              | O que é                                         | Exemplo                                                |
+| --------------------- | ----------------------------------------------- | ------------------------------------------------------ |
+| `GA4_PROPERTY_ID`     | ID numérico da propriedade GA4 (sem prefixo)    | `123456789`                                            |
+| `GOOGLE_CLIENT_EMAIL` | E-mail da Service Account                       | `ga4-dashboard-reader@projeto.iam.gserviceaccount.com` |
+| `GOOGLE_PRIVATE_KEY`  | Chave privada RSA da Service Account (com `\n`) | `-----BEGIN PRIVATE KEY-----\n...`                     |
+| `SYNC_SECRET`         | Bearer token para proteger o endpoint sync      | Qualquer string aleatória                              |
+| `ANTHROPIC_API_KEY`   | API key da Anthropic para análises AI           | `sk-ant-...`                                           |
 
 3. Após adicionar, fazer **Retry deployment** para que o Worker pegue as variáveis.
 
@@ -233,27 +233,34 @@ O sync sem query params puxa automaticamente ontem + hoje (timezone São Paulo).
 ## Troubleshooting
 
 ### Build falha com "Missing entry-point to Worker script"
+
 - O `wrangler.toml` precisa ter `main = "worker.ts"`. Deploy command deve ser `npx wrangler deploy`.
 
 ### Erro 403 na GA4 Data API
+
 - A Service Account não tem acesso à propriedade. Verificar se foi adicionada no GA4 Admin com papel de Leitor.
 - Verificar se `GA4_PROPERTY_ID` não tem o prefixo `properties/` (deve ser só o número).
 
 ### Erro JWT "invalid_grant"
+
 - O `GOOGLE_PRIVATE_KEY` pode ter os `\n` mal formatados. Garantir que o Worker faz `.replace(/\\n/g, '\n')` antes de usar.
 - O relógio do Worker deve estar sincronizado (é gerenciado pela Cloudflare, geralmente ok).
 
 ### GA4 retorna dados vazios para UTMs
+
 - UTMs só são capturados se os links tiverem os parâmetros `utm_*` corretos. Verificar campanhas.
 - Dimensões `sessionCampaignName`, `sessionSource`, `sessionMedium` — não `campaign`, `source`, `medium`.
 
 ### Erro 1101 no Cloudflare
+
 - O Worker crashou. Verificar se o D1 binding está no `wrangler.toml` com o `database_id` correto e se o schema foi executado.
 
 ### Build falha com ERESOLVE peer deps
+
 - O `.npmrc` com `legacy-peer-deps=true` resolve.
 
 ### Análise AI retorna erro 502
+
 - Verificar se `ANTHROPIC_API_KEY` está configurada e se fez **Retry deployment**.
 
 ---
@@ -262,13 +269,13 @@ O sync sem query params puxa automaticamente ontem + hoje (timezone São Paulo).
 
 ZERO segredos no código. Tudo fica no Cloudflare Dashboard → Settings → Variables and secrets.
 
-| Variável | O que é | Exemplo |
-|----------|---------|---------|
-| `GA4_PROPERTY_ID` | ID numérico da propriedade GA4 | `123456789` |
-| `GOOGLE_CLIENT_EMAIL` | E-mail da Service Account | `...@....iam.gserviceaccount.com` |
-| `GOOGLE_PRIVATE_KEY` | Chave privada RSA (com `\n`) | `-----BEGIN PRIVATE KEY-----\n...` |
-| `SYNC_SECRET` | Bearer token pro cron chamar /api/sync | String aleatória |
-| `ANTHROPIC_API_KEY` | API key da Anthropic (Claude) | `sk-ant-...` |
+| Variável              | O que é                                | Exemplo                            |
+| --------------------- | -------------------------------------- | ---------------------------------- |
+| `GA4_PROPERTY_ID`     | ID numérico da propriedade GA4         | `123456789`                        |
+| `GOOGLE_CLIENT_EMAIL` | E-mail da Service Account              | `...@....iam.gserviceaccount.com`  |
+| `GOOGLE_PRIVATE_KEY`  | Chave privada RSA (com `\n`)           | `-----BEGIN PRIVATE KEY-----\n...` |
+| `SYNC_SECRET`         | Bearer token pro cron chamar /api/sync | String aleatória                   |
+| `ANTHROPIC_API_KEY`   | API key da Anthropic (Claude)          | `sk-ant-...`                       |
 
 O D1 é vinculado via `wrangler.toml`.
 
@@ -303,7 +310,10 @@ No `<head>` do `index.html`:
 ```html
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300..700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link
+  href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300..700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+  rel="stylesheet"
+/>
 ```
 
 - **DM Sans** → todo texto de UI (body, labels, headings, nav)
@@ -330,7 +340,7 @@ No `<head>` do `index.html`:
   --text-muted: #4a4a58;
 
   /* Accent colors — paleta GA4 (verde/teal/azul, diferente do Meta Ads amber) */
-  --accent: #10b981;        /* emerald — cor primária GA4 */
+  --accent: #10b981; /* emerald — cor primária GA4 */
   --accent-dim: rgba(16, 185, 129, 0.12);
   --teal: #14b8a6;
   --teal-dim: rgba(20, 184, 166, 0.12);
@@ -349,8 +359,8 @@ No `<head>` do `index.html`:
   --sidebar-w: 220px;
 
   /* Font tokens */
-  --mono: 'JetBrains Mono', monospace;
-  --sans: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --mono: "JetBrains Mono", monospace;
+  --sans: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 body {
@@ -364,21 +374,21 @@ body {
 
 ### Cores por Métrica
 
-| Métrica | Token |
-|---------|-------|
-| Sessões | `--accent` (emerald) |
-| Usuários | `--teal` |
-| Bounce Rate | `--red` |
-| Duração Média | `--blue` |
-| Páginas/Sessão | `--purple` |
-| Leads (generate_lead) | `--accent` |
-| Contratos (purchase) | `--teal` |
-| Taxa de Conversão | `--accent` |
-| Organic Search | `--accent` |
-| Paid Search | `--amber` |
-| Direct | `--blue` |
-| Referral | `--purple` |
-| Social | `--orange` |
+| Métrica               | Token                |
+| --------------------- | -------------------- |
+| Sessões               | `--accent` (emerald) |
+| Usuários              | `--teal`             |
+| Bounce Rate           | `--red`              |
+| Duração Média         | `--blue`             |
+| Páginas/Sessão        | `--purple`           |
+| Leads (generate_lead) | `--accent`           |
+| Contratos (purchase)  | `--teal`             |
+| Taxa de Conversão     | `--accent`           |
+| Organic Search        | `--accent`           |
+| Paid Search           | `--amber`            |
+| Direct                | `--blue`             |
+| Referral              | `--purple`           |
+| Social                | `--orange`           |
 
 ### Padrões de Componentes
 
@@ -404,23 +414,26 @@ Overlay fractal noise em body::after com opacity 0.025, position fixed, pointer-
 ```typescript
 // lib/format.ts
 export function formatNumber(value: number): string {
-  return value.toLocaleString('pt-BR');
+  return value.toLocaleString("pt-BR");
 }
 
 export function formatPercent(value: number, decimals = 2): string {
-  return value.toLocaleString('pt-BR', {
-    minimumFractionDigits: decimals, maximumFractionDigits: decimals,
-  }) + '%';
+  return (
+    value.toLocaleString("pt-BR", {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    }) + "%"
+  );
 }
 
 export function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
-  return `${m}m ${s.toString().padStart(2, '0')}s`;
+  return `${m}m ${s.toString().padStart(2, "0")}s`;
 }
 
 export function formatDateBR(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-');
+  const [y, m, d] = dateStr.split("-");
   return `${d}/${m}/${y}`;
 }
 ```
@@ -434,11 +447,13 @@ Todas as datas usam timezone `America/Sao_Paulo`.
 ### Tabelas
 
 #### ga4_sessions (tabela principal de tráfego diário)
+
 Chave primária: `(date_ref, channel_group, source, medium, campaign, content, term)`.
 
 Colunas: `date_ref TEXT`, `channel_group TEXT`, `source TEXT`, `medium TEXT`, `campaign TEXT`, `content TEXT`, `term TEXT`, `sessions INTEGER`, `users INTEGER`, `new_users INTEGER`, `bounce_rate REAL`, `avg_session_duration REAL`, `screen_page_views INTEGER`, `engaged_sessions INTEGER`
 
 #### ga4_conversions (eventos de conversão diários por UTM)
+
 Chave primária: `(date_ref, event_name, source, medium, campaign, content, term)`.
 
 Colunas: `date_ref TEXT`, `event_name TEXT`, `source TEXT`, `medium TEXT`, `campaign TEXT`, `content TEXT`, `term TEXT`, `event_count INTEGER`, `sessions_with_event INTEGER`
@@ -446,14 +461,17 @@ Colunas: `date_ref TEXT`, `event_name TEXT`, `source TEXT`, `medium TEXT`, `camp
 Eventos relevantes para Petbee: `generate_lead`, `add_to_cart`, `begin_checkout`, `add_payment_info`, `purchase`
 
 #### ga4_pages (top páginas diárias)
+
 Chave primária: `(date_ref, page_path)`.
 
 Colunas: `date_ref TEXT`, `page_path TEXT`, `page_title TEXT`, `screen_page_views INTEGER`, `unique_page_views INTEGER`, `avg_time_on_page REAL`, `bounce_rate REAL`, `exits INTEGER`
 
 #### ga4_account
+
 Info da propriedade GA4. Colunas: `property_id TEXT PRIMARY KEY`, `display_name TEXT`, `time_zone TEXT`, `currency_code TEXT`, `updated_at TEXT`
 
 #### ai_insights
+
 Análises AI salvas. Colunas: `id INTEGER PRIMARY KEY AUTOINCREMENT`, `start_date TEXT`, `end_date TEXT`, `analysis TEXT`, `created_at TEXT`
 
 ### Padrões D1
@@ -509,6 +527,7 @@ Content-Type: application/json
 ```
 
 Body padrão:
+
 ```json
 {
   "dateRanges": [{ "startDate": "YYYY-MM-DD", "endDate": "YYYY-MM-DD" }],
@@ -523,43 +542,50 @@ Paginar usando `offset` enquanto `rows.length === limit`.
 
 #### Dimensões disponíveis
 
-| Dimensão GA4 | O que representa |
-|---|---|
-| `date` | Data no formato `YYYYMMDD` |
+| Dimensão GA4                 | O que representa                                  |
+| ---------------------------- | ------------------------------------------------- |
+| `date`                       | Data no formato `YYYYMMDD`                        |
 | `sessionDefaultChannelGroup` | Canal (Organic Search, Paid Search, Direct, etc.) |
-| `sessionSource` | Source (google, facebook, etc.) |
-| `sessionMedium` | Medium (organic, cpc, email, etc.) |
-| `sessionCampaignName` | Nome da campanha UTM |
-| `sessionManualAdContent` | UTM content |
-| `sessionManualTerm` | UTM term |
-| `pagePath` | Caminho da página |
-| `pageTitle` | Título da página |
-| `eventName` | Nome do evento GA4 |
+| `sessionSource`              | Source (google, facebook, etc.)                   |
+| `sessionMedium`              | Medium (organic, cpc, email, etc.)                |
+| `sessionCampaignName`        | Nome da campanha UTM                              |
+| `sessionManualAdContent`     | UTM content                                       |
+| `sessionManualTerm`          | UTM term                                          |
+| `pagePath`                   | Caminho da página                                 |
+| `pageTitle`                  | Título da página                                  |
+| `eventName`                  | Nome do evento GA4                                |
 
 #### Métricas disponíveis
 
-| Métrica GA4 | O que representa |
-|---|---|
-| `sessions` | Total de sessões |
-| `totalUsers` | Usuários únicos |
-| `newUsers` | Novos usuários |
-| `bounceRate` | Taxa de rejeição (0–1) |
-| `averageSessionDuration` | Duração média em segundos |
-| `screenPageViews` | Visualizações de página |
-| `engagedSessions` | Sessões com engajamento |
-| `eventCount` | Total de eventos (filtrar por eventName) |
-| `sessionsPerUser` | Sessões por usuário |
+| Métrica GA4              | O que representa                         |
+| ------------------------ | ---------------------------------------- |
+| `sessions`               | Total de sessões                         |
+| `totalUsers`             | Usuários únicos                          |
+| `newUsers`               | Novos usuários                           |
+| `bounceRate`             | Taxa de rejeição (0–1)                   |
+| `averageSessionDuration` | Duração média em segundos                |
+| `screenPageViews`        | Visualizações de página                  |
+| `engagedSessions`        | Sessões com engajamento                  |
+| `eventCount`             | Total de eventos (filtrar por eventName) |
+| `sessionsPerUser`        | Sessões por usuário                      |
 
 #### Conversões (eventos-chave Petbee)
 
 Para buscar contagem de eventos específicos, usar dimensão `eventName` + métrica `eventCount` + filtrar:
+
 ```json
 {
   "dimensionFilter": {
     "filter": {
       "fieldName": "eventName",
       "inListFilter": {
-        "values": ["generate_lead", "add_to_cart", "begin_checkout", "add_payment_info", "purchase"]
+        "values": [
+          "generate_lead",
+          "add_to_cart",
+          "begin_checkout",
+          "add_payment_info",
+          "purchase"
+        ]
       }
     }
   }
@@ -569,6 +595,7 @@ Para buscar contagem de eventos específicos, usar dimensão `eventName` + métr
 ### Sync (POST /api/sync/trigger)
 
 Protegido com `Authorization: Bearer {SYNC_SECRET}`:
+
 1. Valida Bearer token
 2. Obtém `access_token` do Google via JWT
 3. Busca `startDate`/`endDate` dos query params (ou default: ontem + hoje em SP)
@@ -593,7 +620,7 @@ Idêntica ao Meta Ads. O endpoint `POST /api/insights/analyze` usa Claude Sonnet
 3. Consulta período anterior para variação
 4. Monta tabelas markdown com métricas completas
 5. Resolve placeholders no user prompt
-6. Envia para Claude API (`claude-sonnet-4-5-20250929`, `max_tokens: 8192`)
+6. Envia para Claude API (`claude-sonnet-4-6`, `max_tokens: 8192`)
 7. Salva no D1 e retorna `{ id, analysis, createdAt }`
 
 ### Dados servidos ao agente
@@ -607,27 +634,28 @@ Idêntica ao Meta Ads. O endpoint `POST /api/insights/analyze` usa Claude Sonnet
 
 ### Placeholders disponíveis no user prompt
 
-| Placeholder | Descrição |
-|-------------|-----------|
-| `{startDate}` | Data início do período |
-| `{endDate}` | Data fim do período |
-| `{n_dias}` | Número de dias no período |
-| `{var_sessoes}` | Variação % das sessões vs período anterior |
-| `{var_leads}` | Variação % dos leads vs período anterior |
-| `{var_contratos}` | Variação % dos contratos vs período anterior |
-| `{var_bounce}` | Variação % do bounce rate vs período anterior |
-| `{var_duracao}` | Variação % da duração média vs período anterior |
-| `{tabela_kpis_gerais}` | KPIs agregados em markdown |
-| `{tabela_canais}` | Sessões/conversões por canal em markdown |
-| `{tabela_utms}` | Top UTM campaigns em markdown |
-| `{tabela_funil}` | Etapas do funil em markdown |
-| `{tabela_paginas}` | Top páginas em markdown |
-| `{variacao_canais}` | Tabela comparativa por canal vs período anterior |
-| `{variacao_utms}` | Tabela comparativa por campanha UTM vs período anterior |
+| Placeholder            | Descrição                                               |
+| ---------------------- | ------------------------------------------------------- |
+| `{startDate}`          | Data início do período                                  |
+| `{endDate}`            | Data fim do período                                     |
+| `{n_dias}`             | Número de dias no período                               |
+| `{var_sessoes}`        | Variação % das sessões vs período anterior              |
+| `{var_leads}`          | Variação % dos leads vs período anterior                |
+| `{var_contratos}`      | Variação % dos contratos vs período anterior            |
+| `{var_bounce}`         | Variação % do bounce rate vs período anterior           |
+| `{var_duracao}`        | Variação % da duração média vs período anterior         |
+| `{tabela_kpis_gerais}` | KPIs agregados em markdown                              |
+| `{tabela_canais}`      | Sessões/conversões por canal em markdown                |
+| `{tabela_utms}`        | Top UTM campaigns em markdown                           |
+| `{tabela_funil}`       | Etapas do funil em markdown                             |
+| `{tabela_paginas}`     | Top páginas em markdown                                 |
+| `{variacao_canais}`    | Tabela comparativa por canal vs período anterior        |
+| `{variacao_utms}`      | Tabela comparativa por campanha UTM vs período anterior |
 
 ### System Prompt padrão
 
 Contexto Petbee (insurtech de saúde pet), analista de Growth focado em tráfego e conversão:
+
 - **Funil Petbee:** Landing page (generate_lead) → site principal (add_to_cart → begin_checkout → add_payment_info → purchase)
 - **Benchmarks de referência:** Bounce rate landing < 60%, Duração média > 1m30s, Taxa lead-to-contrato > 8%, CTR orgânico > 3%
 - **Canais:** Distinguir Organic Search, Paid Search (Google Ads), Paid Social (Meta Ads), Direct, Referral, Email
@@ -644,6 +672,7 @@ Todos recebem `?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` como query params. Sem 
 ### GET /api/metrics/visao-geral
 
 Retorna KPIs agregados + série diária:
+
 ```json
 {
   "kpis": {
@@ -666,6 +695,7 @@ Retorna KPIs agregados + série diária:
 ### GET /api/metrics/trafego
 
 Retorna sessões por canal + source/medium:
+
 ```json
 {
   "byChannel": [{ "channel": "Organic Search", "sessions": 5432, "users": 4321, "bounceRate": 48.2, "leads": 123, "contracts": 23 }],
@@ -676,13 +706,24 @@ Retorna sessões por canal + source/medium:
 ### GET /api/metrics/utms
 
 Retorna análise por dimensão UTM. Query param `?dimension=campaign|source|medium|content|term`:
+
 ```json
-[{ "value": "nome-da-campanha", "sessions": 1234, "leads": 45, "contracts": 8, "convRateLead": 3.65, "convRateContract": 0.65 }]
+[
+  {
+    "value": "nome-da-campanha",
+    "sessions": 1234,
+    "leads": 45,
+    "contracts": 8,
+    "convRateLead": 3.65,
+    "convRateContract": 0.65
+  }
+]
 ```
 
 ### GET /api/metrics/funil
 
 Retorna etapas do funil de conversão:
+
 ```json
 {
   "steps": [
@@ -704,9 +745,21 @@ Retorna etapas do funil de conversão:
 ### GET /api/metrics/paginas
 
 Retorna top páginas:
+
 ```json
-[{ "pagePath": "/planos", "pageTitle": "Planos Petbee", "views": 4567, "uniqueViews": 3456, "avgTimeOnPage": 95.3, "bounceRate": 42.1, "exits": 789 }]
+[
+  {
+    "pagePath": "/planos",
+    "pageTitle": "Planos Petbee",
+    "views": 4567,
+    "uniqueViews": 3456,
+    "avgTimeOnPage": 95.3,
+    "bounceRate": 42.1,
+    "exits": 789
+  }
+]
 ```
+
 Ordenado por views DESC. Paginado (query params `?page=1&pageSize=20`).
 
 ### POST /api/insights/analyze
@@ -734,6 +787,7 @@ Retorna: `{ success, synced: { sessions, conversions, pages }, dateRange }`
 ### 1. Visão Geral (/visao-geral)
 
 Layout:
+
 - Badge com nome da propriedade GA4
 - Título "Visão Geral" + subtítulo "Analytics da Petbee"
 - TimeWindowPicker: `Hoje | Ontem | 7 dias | 14 dias | 30 dias | Este mês | Mês passado`
@@ -745,6 +799,7 @@ Layout:
 ### 2. Tráfego (/trafego)
 
 Layout:
+
 - TimeWindowPicker + toggle comparar
 - Tabela por canal (Channel Group): Canal, Sessões, Usuários, Bounce Rate, Duração Média, Leads, Contratos, Taxa Conv. Lead, Taxa Conv. Contrato
 - Tabela Source/Medium: Source, Medium, Sessões, Usuários, Leads, Contratos, Taxa Conv.
@@ -753,6 +808,7 @@ Layout:
 ### 3. UTMs (/utms)
 
 Layout:
+
 - TimeWindowPicker
 - Tabs: `Campanha | Source | Medium | Content | Term`
 - Tabela da dimensão selecionada: Valor, Sessões, Leads, Contratos, Taxa Conv. Lead, Taxa Conv. Contrato
@@ -762,6 +818,7 @@ Layout:
 ### 4. Funil (/funil)
 
 Layout:
+
 - TimeWindowPicker + toggle comparar
 - FunnelChart: barras horizontais escalonadas (cada etapa mais estreita), com:
   - Nome da etapa + evento GA4
@@ -773,6 +830,7 @@ Layout:
 ### 5. Páginas (/paginas)
 
 Layout:
+
 - TimeWindowPicker
 - Tabela com paginação: Página, Título, Views, Views Únicas, Tempo Médio, Bounce Rate, Saídas
 - Filtro por prefix de URL (ex: `/planos`, `/sobre`)
@@ -781,6 +839,7 @@ Layout:
 ### 6. Insights AI (/insights)
 
 Layout idêntico ao Meta Ads:
+
 - TimeWindowPicker para selecionar período
 - Seção colapsável "Configurar Prompts"
 - Botão "Gerar Análise"

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTimeWindow } from '../hooks/useGA4Data';
-import { getFunil, getFunilPages } from '../lib/api';
-import type { FunnelData } from '../types';
+import { getFunil, getFunilPages, getFunilSources } from '../lib/api';
+import type { FunnelData, FunnelSource } from '../types';
 import TimeWindowPicker from '../components/TimeWindowPicker';
 import CompareToggle from '../components/CompareToggle';
 import FunnelChart from '../components/FunnelChart';
@@ -19,6 +19,8 @@ export default function Funil() {
   const [selectedDomain, setSelectedDomain] = useState<string>('');
   const [pages, setPages] = useState<string[]>([]);
   const [selectedPage, setSelectedPage] = useState<string>('');
+  const [sources, setSources] = useState<FunnelSource[]>([]);
+  const [selectedSource, setSelectedSource] = useState<string>('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -39,11 +41,28 @@ export default function Funil() {
       .catch(console.error);
   }, [effectiveStart, endDate, selectedDomain]);
 
-  // Reset selected page when domain changes
+  // Reset selected page and source when domain changes
   useEffect(() => {
     setSelectedPage('');
+    setSelectedSource('');
     setSearch('');
   }, [selectedDomain]);
+
+  // Reset source when page changes
+  useEffect(() => {
+    setSelectedSource('');
+  }, [selectedPage]);
+
+  // Load sources when domain/page/dates change
+  useEffect(() => {
+    if (!selectedDomain) {
+      setSources([]);
+      return;
+    }
+    getFunilSources(effectiveStart, endDate, selectedDomain, selectedPage || undefined)
+      .then((res) => setSources(res.sources))
+      .catch(console.error);
+  }, [effectiveStart, endDate, selectedDomain, selectedPage]);
 
   // Load funnel data
   useEffect(() => {
@@ -53,12 +72,13 @@ export default function Funil() {
       endDate,
       compare,
       selectedPage || undefined,
-      selectedDomain || undefined
+      selectedDomain || undefined,
+      selectedSource || undefined
     )
       .then(setData)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [effectiveStart, endDate, compare, selectedDomain, selectedPage]);
+  }, [effectiveStart, endDate, compare, selectedDomain, selectedPage, selectedSource]);
 
   const filteredPages = search
     ? pages.filter((p) => p.toLowerCase().includes(search.toLowerCase()))
@@ -182,6 +202,80 @@ export default function Funil() {
           {selectedPage && (
             <div className="text-xs" style={{ color: 'var(--text-dim)', fontFamily: 'var(--mono)' }}>
               Filtrando: {selectedPage}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Source filter — visible when a domain is selected and sources exist */}
+      {selectedDomain && sources.length > 0 && (
+        <div
+          className="rounded-xl p-4 space-y-3"
+          style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold tracking-wider" style={{ color: 'var(--text-muted)' }}>
+              FILTRAR POR ORIGEM
+            </h3>
+            {selectedSource && (
+              <button
+                onClick={() => setSelectedSource('')}
+                className="text-xs px-2 py-1 rounded cursor-pointer transition-colors"
+                style={{
+                  color: 'var(--teal)',
+                  backgroundColor: 'var(--teal-dim)',
+                  fontFamily: 'var(--mono)',
+                }}
+              >
+                Limpar filtro
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              onClick={() => setSelectedSource('')}
+              className="px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer"
+              style={{
+                fontFamily: 'var(--mono)',
+                fontSize: '11px',
+                backgroundColor: !selectedSource ? 'var(--teal-dim)' : 'transparent',
+                border: !selectedSource ? '1px solid var(--teal)' : '1px solid var(--border)',
+                color: !selectedSource ? 'var(--teal)' : 'var(--text-muted)',
+              }}
+            >
+              Todas
+            </button>
+            {sources.map((s) => (
+              <button
+                key={s.source}
+                onClick={() => setSelectedSource(s.source)}
+                className="px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                style={{
+                  fontFamily: 'var(--mono)',
+                  fontSize: '11px',
+                  backgroundColor: selectedSource === s.source ? 'var(--teal-dim)' : 'transparent',
+                  border: selectedSource === s.source ? '1px solid var(--teal)' : '1px solid var(--border)',
+                  color: selectedSource === s.source ? 'var(--teal)' : 'var(--text-muted)',
+                }}
+              >
+                {s.source}
+                <span
+                  className="px-1.5 py-0.5 rounded text-[10px]"
+                  style={{
+                    backgroundColor: selectedSource === s.source ? 'rgba(20, 184, 166, 0.2)' : 'var(--surface-alt)',
+                    color: selectedSource === s.source ? 'var(--teal)' : 'var(--text-dim)',
+                  }}
+                >
+                  {s.leads}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {selectedSource && (
+            <div className="text-xs" style={{ color: 'var(--text-dim)', fontFamily: 'var(--mono)' }}>
+              Filtrando: {selectedSource}
             </div>
           )}
         </div>
