@@ -91,6 +91,8 @@ function getPastMonthOptions(): TimeWindow[] {
 export const TIME_WINDOWS: TimeWindow[] = [
   { label: 'Hoje', value: 'today' },
   { label: 'Ontem', value: 'yesterday' },
+  { label: '3 dias', value: '3d' },
+  { label: '5 dias', value: '5d' },
   { label: '7 dias', value: '7d' },
   { label: '14 dias', value: '14d' },
   { label: '30 dias', value: '30d' },
@@ -144,6 +146,16 @@ export function useTimeWindow(defaultWindow = '7d', minDate?: string): UseTimeWi
 
       case 'yesterday':
         start = yesterday;
+        end = yesterday;
+        break;
+
+      case '3d':
+        start = subDays(yesterday, 2);
+        end = yesterday;
+        break;
+
+      case '5d':
+        start = subDays(yesterday, 4);
         end = yesterday;
         break;
 
