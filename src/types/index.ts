@@ -100,7 +100,7 @@ export interface FunnelSource {
 
 export interface ABVariantSummary {
   variant: string;
-  pageviews: number;
+  sessions: number;
   leads: number;
   convRate: number;
 }

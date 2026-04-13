@@ -378,9 +378,9 @@ export default function Funil() {
                     )}
                     <div className="space-y-1">
                       <div className="flex justify-between text-xs">
-                        <span style={{ color: 'var(--text-dim)' }}>Pageviews</span>
+                        <span style={{ color: 'var(--text-dim)' }}>Sessões</span>
                         <span style={{ fontFamily: 'var(--mono)', color: 'var(--text)' }}>
-                          {formatNumber(v.pageviews)}
+                          {formatNumber(v.sessions)}
                         </span>
                       </div>
                       <div className="flex justify-between text-xs">

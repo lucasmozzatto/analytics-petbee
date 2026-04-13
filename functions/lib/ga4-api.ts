@@ -511,7 +511,8 @@ export interface ABVariantRow {
 /**
  * Fetches A/B variant data from GA4.
  * Uses customEvent:ab_variant dimension to break down events by variant.
- * Fetches ab_variant_set (pageview proxy) and generate_lead (conversion) events.
+ * Fetches ab_variant_set (session count per variant) and generate_lead (conversion) events.
+ * Uses `sessions` metric for ab_variant_set (deduplicated) and `eventCount` for generate_lead.
  * Filters out rows where ab_variant is (not set).
  */
 export async function fetchABVariants(
@@ -529,7 +530,7 @@ export async function fetchABVariants(
       { name: 'customEvent:ab_variant' },
     ],
     metrics: [
-      { name: 'eventCount' },
+      { name: 'sessions' },
     ],
     dimensionFilter: {
       filter: {

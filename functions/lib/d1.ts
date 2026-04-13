@@ -1688,13 +1688,14 @@ export async function syncABVariants(db: D1Database, rows: ABVariantRow[]): Prom
 
 export interface ABVariantSummary {
   variant: string;
-  pageviews: number;
+  sessions: number;
   leads: number;
   convRate: number;
 }
 
 /**
- * Returns available A/B variants with pageview and lead counts for the given filters.
+ * Returns available A/B variants with session and lead counts for the given filters.
+ * Sessions come from ab_variant_set events (using GA4 sessions metric, deduplicated).
  * Used for variant selector UI + comparison summary.
  */
 export async function queryABVariants(
@@ -1722,25 +1723,25 @@ export async function queryABVariants(
     .prepare(
       `SELECT
         variant,
-        SUM(CASE WHEN event_name = 'ab_variant_set' THEN event_count ELSE 0 END) AS pageviews,
+        SUM(CASE WHEN event_name = 'ab_variant_set' THEN event_count ELSE 0 END) AS sessions,
         SUM(CASE WHEN event_name = 'generate_lead' THEN event_count ELSE 0 END) AS leads
       FROM ga4_ab_variants
       WHERE ${where.join(' AND ')}
       GROUP BY variant
-      HAVING pageviews > 0 OR leads > 0
-      ORDER BY pageviews DESC`
+      HAVING sessions > 0 OR leads > 0
+      ORDER BY sessions DESC`
     )
     .bind(...binds)
     .all();
 
   return (result.results as Record<string, unknown>[]).map((row) => {
-    const pageviews = (row.pageviews as number) ?? 0;
+    const sessions = (row.sessions as number) ?? 0;
     const leads = (row.leads as number) ?? 0;
     return {
       variant: row.variant as string,
-      pageviews,
+      sessions,
       leads,
-      convRate: pageviews > 0 ? (leads / pageviews) * 100 : 0,
+      convRate: sessions > 0 ? (leads / sessions) * 100 : 0,
     };
   });
 }
