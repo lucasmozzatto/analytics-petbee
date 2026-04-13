@@ -133,11 +133,20 @@ Entry point único que faz o routing de todas as rotas `/api/*`:
 GET  /api/metrics/visao-geral          → KPIs gerais + série diária
 GET  /api/metrics/trafego              → Sessões por canal + source/medium
 GET  /api/metrics/utms                 → Análise por UTM (campaign, source, medium, content, term)
-GET  /api/metrics/funil                → Etapas do funil de conversão
+GET  /api/metrics/funil                → Etapas do funil de conversão (?variant= para A/B)
+GET  /api/metrics/funil/pages          → Páginas com eventos de conversão
+GET  /api/metrics/funil/sources        → Sources com lead counts para filtro
+GET  /api/metrics/funil/variants       → Variantes A/B com pageviews, leads, conversão
 GET  /api/metrics/paginas              → Top páginas por views/conversão
+GET  /api/metrics/onboarding           → Funil de onboarding (steps 5-22)
+GET  /api/metrics/dispositivos         → Sessões/conversões por device category
+GET  /api/metrics/horarios             → Heatmap sessões por dia × hora
+GET  /api/metrics/geografia            → Sessões por região/cidade
 GET  /api/insights/history             → Lista de análises AI salvas (sem texto)
 GET  /api/insights/:id                 → Análise AI completa por ID
 POST /api/insights/analyze             → Gerar nova análise AI com Claude
+GET  /api/config/funnel-pages          → Páginas com status blocked/unblocked
+POST /api/config/funnel-pages          → Atualizar blocklist de páginas no funil
 POST /api/sync/trigger                 → Sync GA4 API → D1 (protegido por Bearer token)
 ```
 
@@ -466,6 +475,17 @@ Chave primária: `(date_ref, page_path)`.
 
 Colunas: `date_ref TEXT`, `page_path TEXT`, `page_title TEXT`, `screen_page_views INTEGER`, `unique_page_views INTEGER`, `avg_time_on_page REAL`, `bounce_rate REAL`, `exits INTEGER`
 
+#### ga4_ab_variants (dados de teste A/B por variante)
+
+Chave primária: `(date_ref, hostname, page_path, variant, event_name)`.
+
+Colunas: `date_ref TEXT`, `hostname TEXT`, `page_path TEXT`, `variant TEXT`, `event_name TEXT`, `event_count INTEGER`
+
+Eventos: `ab_variant_set` (proxy de pageview por variante) e `generate_lead` (conversão por variante).
+Formato do variant: `<slug-da-lp>:<variante>` — ex: `pioracontece:A`, `pioracontece:B`.
+
+Dados vêm da dimensão customizada `customEvent:ab_variant` do GA4 Data API.
+
 #### ga4_account
 
 Info da propriedade GA4. Colunas: `property_id TEXT PRIMARY KEY`, `display_name TEXT`, `time_zone TEXT`, `currency_code TEXT`, `updated_at TEXT`
@@ -553,7 +573,16 @@ Paginar usando `offset` enquanto `rows.length === limit`.
 | `sessionManualTerm`          | UTM term                                          |
 | `pagePath`                   | Caminho da página                                 |
 | `pageTitle`                  | Título da página                                  |
+| `hostName`                   | Hostname (lp.petbee.com.br, petbee.com.br, etc.)  |
 | `eventName`                  | Nome do evento GA4                                |
+| `deviceCategory`             | Categoria do device (mobile, desktop, tablet)      |
+| `dayOfWeek`                  | Dia da semana (0=domingo)                          |
+| `hour`                       | Hora do dia (0–23)                                 |
+| `region`                     | Estado/região                                      |
+| `city`                       | Cidade                                             |
+| `customEvent:ab_variant`     | Variante A/B (ex: `pioracontece:A`)                |
+| `customEvent:step_number`    | Step do onboarding (5–22)                          |
+| `customEvent:step_name`      | Nome do step do onboarding                         |
 
 #### Métricas disponíveis
 
@@ -599,13 +628,21 @@ Protegido com `Authorization: Bearer {SYNC_SECRET}`:
 1. Valida Bearer token
 2. Obtém `access_token` do Google via JWT
 3. Busca `startDate`/`endDate` dos query params (ou default: ontem + hoje em SP)
-4. Em paralelo, faz 3 requests à GA4 Data API:
+4. Em paralelo, faz 12 requests à GA4 Data API:
    - **Sessões por UTM:** dimensões `[date, sessionDefaultChannelGroup, sessionSource, sessionMedium, sessionCampaignName, sessionManualAdContent, sessionManualTerm]` + métricas de sessão
    - **Conversões por UTM:** dimensões `[date, eventName, sessionSource, sessionMedium, sessionCampaignName, sessionManualAdContent, sessionManualTerm]` + `eventCount`
-   - **Top Páginas:** dimensões `[date, pagePath, pageTitle]` + métricas de página
+   - **Top Páginas:** dimensões `[date, pagePath, pageTitle, hostName]` + métricas de página
+   - **Page Conversions:** dimensões `[date, eventName, pagePath, hostName, sessionSource, sessionMedium]` + `eventCount`
+   - **Daily Totals:** dimensão `[date]` + métricas de sessão (sem UTM breakdown)
+   - **Daily Conversions:** dimensões `[date, eventName]` + `keyEvents`, `eventCount`
+   - **Onboarding Steps:** dimensões `[date, customEvent:step_number, customEvent:step_name]` filtrado por `onboarding_step` + `direction=forward`
+   - **Device Stats:** dimensões `[date, deviceCategory]` + métricas de sessão
+   - **Device Conversions:** dimensões `[date, deviceCategory, eventName]` + `eventCount`
+   - **Hourly Stats:** dimensões `[date, dayOfWeek, hour]` + sessões/users
+   - **Geo Stats:** dimensões `[date, region, city]` + métricas de sessão
+   - **A/B Variants:** dimensões `[date, hostName, pagePath, eventName, customEvent:ab_variant]` + `eventCount` — filtra `ab_variant_set` e `generate_lead` com variant `!= (not set)`
 5. Upsert em D1 via `db.batch()` (chunks de 100)
-6. Upsert info da propriedade em `ga4_account`
-7. Retorna `{ success, synced: { sessions, conversions, pages }, dateRange }`
+6. Retorna `{ success, synced: { sessions, conversions, pages, pageConversions, dailyTotals, dailyConversions, onboardingSteps, deviceStats, deviceConversions, hourlyStats, geoStats, abVariants }, dateRange }`
 
 ---
 
@@ -722,6 +759,10 @@ Retorna análise por dimensão UTM. Query param `?dimension=campaign|source|medi
 
 ### GET /api/metrics/funil
 
+Query params: `?page=&hostname=&source=&variant=&compare=true`
+
+Quando `variant` é passado, usa `queryABFunnel` que retorna funil filtrado pela variante A/B (anchor = `ab_variant_set` count).
+
 Retorna etapas do funil de conversão:
 
 ```json
@@ -738,6 +779,23 @@ Retorna etapas do funil de conversão:
     { "from": "Visitantes", "to": "Leads", "rate": 1.90 },
     { "from": "Leads", "to": "Carrinho", "rate": 80.77 },
     ...
+  ],
+  "funnels": [...] // apenas para website (petbee.com.br): múltiplos funis
+}
+
+```
+
+### GET /api/metrics/funil/variants
+
+Query params: `?hostname=&page=`
+
+Retorna variantes A/B com métricas de comparação:
+
+```json
+{
+  "variants": [
+    { "variant": "pioracontece:A", "pageviews": 1234, "leads": 45, "convRate": 3.65 },
+    { "variant": "pioracontece:B", "pageviews": 1198, "leads": 62, "convRate": 5.18 }
   ]
 }
 ```
@@ -820,11 +878,21 @@ Layout:
 Layout:
 
 - TimeWindowPicker + toggle comparar
-- FunnelChart: barras horizontais escalonadas (cada etapa mais estreita), com:
+- **Domain tabs:** Todas | Landing Pages (`lp.petbee.com.br`) | Website (`petbee.com.br`)
+- **Filtro por página:** quando domínio selecionado, mostra páginas com eventos de conversão
+- **Filtro por origem:** sources com badge de leads
+- **Teste A/B (LP only):** quando LP selecionada e existem variantes A/B:
+  - Cards lado a lado com Variante A vs B: pageviews, leads, conversão
+  - Badge WINNER na variante com maior conversão
+  - Delta percentual entre variantes
+  - Click num card filtra o funil para aquela variante
+- FunnelChart: barras trapezoidais escalonadas (cada etapa mais estreita), com:
+  - KPI summary cards (Entrada, Saída, Conversão Total, Maior Perda)
   - Nome da etapa + evento GA4
   - Valor absoluto (font-mono)
   - Taxa vs total de sessões
   - Taxa vs etapa anterior (entre barras)
+- **Website:** 3 funis separados (Pricing, WhatsApp, Quiz/Simulador)
 - Tabela de drop-off: entre quais etapas perde-se mais usuários
 
 ### 5. Páginas (/paginas)
@@ -910,6 +978,51 @@ React SPA (Cloudflare Static Assets)
 ```
 
 **Nenhum segredo toca o frontend.** O SPA só chama `/api/*`. Toda comunicação com a GA4 API e Anthropic API é server-side.
+
+---
+
+## Tracking de Testes A/B nas Landing Pages
+
+### Arquitetura
+
+O tracking de A/B é implementado no dataLayer das LPs e processado via GTM → GA4 → Dashboard.
+
+**Eventos no dataLayer:**
+
+1. **`ab_variant_set`** — dispara no carregamento de qualquer LP com teste A/B ativo
+   - Payload: `{ event: "ab_variant_set", ab_variant: "pioracontece:A" }`
+2. **`generate_lead`** — dispara no submit do formulário, já inclui campo `variant`
+
+**Formato do valor:** `<slug-da-lp>:<variante>` — ex: `pioracontece:A`, `pioracontece:B`
+
+### Configuração GTM/GA4 (já feita)
+
+1. **Variável GTM:** Data Layer Variable → `ab_variant`
+2. **Custom Dimension GA4:** "AB Variant" vinculada ao parâmetro `ab_variant` (event-scoped)
+3. **Tag GTM:** GA4 Event para `ab_variant_set` enviando parâmetro `ab_variant`
+
+### Fluxo de dados no Dashboard
+
+```
+LP dataLayer → GTM → GA4 (customEvent:ab_variant)
+                           ↓
+              Sync (fetchABVariants) → ga4_ab_variants (D1)
+                           ↓
+              /api/metrics/funil/variants → Frontend (cards A vs B)
+              /api/metrics/funil?variant= → Frontend (funil filtrado)
+```
+
+### Funções backend
+
+- **`fetchABVariants()`** (ga4-api.ts) — busca GA4 com dimensão `customEvent:ab_variant`, filtra `(not set)`
+- **`syncABVariants()`** (d1.ts) — upsert no D1
+- **`queryABVariants()`** (d1.ts) — retorna variantes com pageviews, leads, convRate agrupados
+- **`queryABFunnel()`** (d1.ts) — funil filtrado por variante (anchor = `ab_variant_set`)
+
+### LP ativa com A/B
+
+- `/pioracontece` — 50% variante A / 50% variante B
+- Escalável: qualquer LP nova com A/B já envia automaticamente, sem mexer no GTM
 
 ---
 
