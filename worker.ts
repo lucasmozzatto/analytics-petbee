@@ -12,6 +12,7 @@ import {
   fetchDeviceConversions,
   fetchHourlyStats,
   fetchGeoStats,
+  fetchABVariants,
 } from "./functions/lib/ga4-api";
 import {
   todaySP,
@@ -30,6 +31,7 @@ import {
   syncDeviceConversions,
   syncHourlyStats,
   syncGeoStats,
+  syncABVariants,
   queryKPIs,
   queryTimeseries,
   queryByChannel,
@@ -49,6 +51,8 @@ import {
   queryByDevice,
   queryHourlyHeatmap,
   queryByGeo,
+  queryABVariants,
+  queryABFunnel,
 } from "./functions/lib/d1";
 
 import type {
@@ -272,6 +276,23 @@ export default {
       }
 
       // ────────────────────────────────────────────────
+      // GET /api/metrics/funil/variants
+      // ────────────────────────────────────────────────
+      if (pathname === "/api/metrics/funil/variants" && method === "GET") {
+        const { startDate, endDate } = getDateParams(url);
+        const hostname = url.searchParams.get("hostname") ?? undefined;
+        const pagePath = url.searchParams.get("page") ?? undefined;
+        const variants = await queryABVariants(
+          env.DB,
+          startDate,
+          endDate,
+          hostname,
+          pagePath,
+        );
+        return jsonResponse({ variants });
+      }
+
+      // ────────────────────────────────────────────────
       // GET /api/metrics/funil
       // ────────────────────────────────────────────────
       if (pathname === "/api/metrics/funil" && method === "GET") {
@@ -280,31 +301,27 @@ export default {
         const pagePath = url.searchParams.get("page") ?? undefined;
         const hostname = url.searchParams.get("hostname") ?? undefined;
         const source = url.searchParams.get("source") ?? undefined;
+        const variant = url.searchParams.get("variant") ?? undefined;
 
-        const funnel = await queryPageFunnel(
-          env.DB,
-          startDate,
-          endDate,
-          pagePath,
-          hostname,
-          source,
-        );
+        // If a specific variant is selected, use the AB funnel query
+        const funnel = variant
+          ? await queryABFunnel(env.DB, startDate, endDate, variant, hostname, pagePath)
+          : await queryPageFunnel(env.DB, startDate, endDate, pagePath, hostname, source);
 
         const result: Record<string, unknown> = {
           steps: funnel.steps,
           stepConversions: funnel.stepConversions,
         };
 
+        if (funnel.funnels) {
+          result.funnels = funnel.funnels;
+        }
+
         if (compare) {
           const prev = getPreviousPeriod(startDate, endDate);
-          const previousFunnel = await queryPageFunnel(
-            env.DB,
-            prev.startDate,
-            prev.endDate,
-            pagePath,
-            hostname,
-            source,
-          );
+          const previousFunnel = variant
+            ? await queryABFunnel(env.DB, prev.startDate, prev.endDate, variant, hostname, pagePath)
+            : await queryPageFunnel(env.DB, prev.startDate, prev.endDate, pagePath, hostname, source);
           result.previous = {
             steps: previousFunnel.steps,
             stepConversions: previousFunnel.stepConversions,
@@ -931,6 +948,7 @@ Analise: quais campanhas estão trazendo mais leads com melhor custo-benefício?
           deviceConversions,
           hourlyStats,
           geoStats,
+          abVariants,
         ] = await Promise.all([
           fetchSessions(env, startDate, endDate),
           fetchConversions(env, startDate, endDate),
@@ -943,6 +961,7 @@ Analise: quais campanhas estão trazendo mais leads com melhor custo-benefício?
           fetchDeviceConversions(env, startDate, endDate),
           fetchHourlyStats(env, startDate, endDate),
           fetchGeoStats(env, startDate, endDate),
+          fetchABVariants(env, startDate, endDate),
         ]);
 
         // Sync all to D1
@@ -958,6 +977,7 @@ Analise: quais campanhas estão trazendo mais leads com melhor custo-benefício?
           syncedDeviceConversions,
           syncedHourlyStats,
           syncedGeoStats,
+          syncedABVariants,
         ] = await Promise.all([
           syncSessions(env.DB, sessions),
           syncConversions(env.DB, conversions),
@@ -970,6 +990,7 @@ Analise: quais campanhas estão trazendo mais leads com melhor custo-benefício?
           syncDeviceConversions(env.DB, deviceConversions),
           syncHourlyStats(env.DB, hourlyStats),
           syncGeoStats(env.DB, geoStats),
+          syncABVariants(env.DB, abVariants),
         ]);
 
         return jsonResponse({
@@ -986,6 +1007,7 @@ Analise: quais campanhas estão trazendo mais leads com melhor custo-benefício?
             deviceConversions: syncedDeviceConversions,
             hourlyStats: syncedHourlyStats,
             geoStats: syncedGeoStats,
+            abVariants: syncedABVariants,
           },
           dateRange: { startDate, endDate },
         });

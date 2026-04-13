@@ -497,6 +497,64 @@ export async function fetchPageConversions(
   }));
 }
 
+// ── A/B Variant Fetcher ──
+
+export interface ABVariantRow {
+  date: string;
+  hostname: string;
+  pagePath: string;
+  eventName: string;
+  variant: string;
+  eventCount: number;
+}
+
+/**
+ * Fetches A/B variant data from GA4.
+ * Uses customEvent:ab_variant dimension to break down events by variant.
+ * Fetches ab_variant_set (pageview proxy) and generate_lead (conversion) events.
+ * Filters out rows where ab_variant is (not set).
+ */
+export async function fetchABVariants(
+  env: Env,
+  startDate: string,
+  endDate: string
+): Promise<ABVariantRow[]> {
+  const response = await runReport(env, {
+    dateRanges: [{ startDate, endDate }],
+    dimensions: [
+      { name: 'date' },
+      { name: 'hostName' },
+      { name: 'pagePath' },
+      { name: 'eventName' },
+      { name: 'customEvent:ab_variant' },
+    ],
+    metrics: [
+      { name: 'eventCount' },
+    ],
+    dimensionFilter: {
+      filter: {
+        fieldName: 'eventName',
+        inListFilter: {
+          values: ['ab_variant_set', 'generate_lead'],
+        },
+      },
+    },
+  });
+
+  if (!response.rows) return [];
+
+  return response.rows
+    .filter((row) => row.dimensionValues[4].value && row.dimensionValues[4].value !== '(not set)')
+    .map((row) => ({
+      date: formatGA4Date(row.dimensionValues[0].value),
+      hostname: row.dimensionValues[1].value || '',
+      pagePath: row.dimensionValues[2].value || '',
+      eventName: row.dimensionValues[3].value || '',
+      variant: row.dimensionValues[4].value || '',
+      eventCount: parseInt(row.metricValues[0].value, 10) || 0,
+    }));
+}
+
 // ── Onboarding Steps Fetcher ──
 
 export interface OnboardingStepRow {

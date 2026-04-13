@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTimeWindow } from '../hooks/useGA4Data';
-import { getFunil, getFunilPages, getFunilSources } from '../lib/api';
-import type { FunnelData, FunnelSource } from '../types';
+import { getFunil, getFunilPages, getFunilSources, getFunilVariants } from '../lib/api';
+import type { FunnelData, FunnelSource, ABVariantSummary } from '../types';
 import TimeWindowPicker from '../components/TimeWindowPicker';
 import CompareToggle from '../components/CompareToggle';
 import FunnelChart from '../components/FunnelChart';
@@ -21,6 +21,8 @@ export default function Funil() {
   const [selectedPage, setSelectedPage] = useState<string>('');
   const [sources, setSources] = useState<FunnelSource[]>([]);
   const [selectedSource, setSelectedSource] = useState<string>('');
+  const [variants, setVariants] = useState<ABVariantSummary[]>([]);
+  const [selectedVariant, setSelectedVariant] = useState<string>('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -41,16 +43,18 @@ export default function Funil() {
       .catch(console.error);
   }, [effectiveStart, endDate, selectedDomain]);
 
-  // Reset selected page and source when domain changes
+  // Reset selected page, source and variant when domain changes
   useEffect(() => {
     setSelectedPage('');
     setSelectedSource('');
+    setSelectedVariant('');
     setSearch('');
   }, [selectedDomain]);
 
-  // Reset source when page changes
+  // Reset source and variant when page changes
   useEffect(() => {
     setSelectedSource('');
+    setSelectedVariant('');
   }, [selectedPage]);
 
   // Load sources when domain/page/dates change
@@ -64,6 +68,18 @@ export default function Funil() {
       .catch(console.error);
   }, [effectiveStart, endDate, selectedDomain, selectedPage]);
 
+  // Load A/B variants when LP domain is selected
+  useEffect(() => {
+    if (selectedDomain !== 'lp.petbee.com.br') {
+      setVariants([]);
+      setSelectedVariant('');
+      return;
+    }
+    getFunilVariants(effectiveStart, endDate, selectedDomain, selectedPage || undefined)
+      .then((res) => setVariants(res.variants))
+      .catch(() => setVariants([]));
+  }, [effectiveStart, endDate, selectedDomain, selectedPage]);
+
   // Load funnel data
   useEffect(() => {
     setLoading(true);
@@ -73,12 +89,13 @@ export default function Funil() {
       compare,
       selectedPage || undefined,
       selectedDomain || undefined,
-      selectedSource || undefined
+      selectedSource || undefined,
+      selectedVariant || undefined
     )
       .then(setData)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [effectiveStart, endDate, compare, selectedDomain, selectedPage, selectedSource]);
+  }, [effectiveStart, endDate, compare, selectedDomain, selectedPage, selectedSource, selectedVariant]);
 
   const filteredPages = search
     ? pages.filter((p) => p.toLowerCase().includes(search.toLowerCase()))
@@ -278,6 +295,133 @@ export default function Funil() {
               Filtrando: {selectedSource}
             </div>
           )}
+        </div>
+      )}
+
+      {/* A/B Variant comparison — visible when LP domain has variants */}
+      {selectedDomain === 'lp.petbee.com.br' && variants.length > 0 && (
+        <div className="space-y-3">
+          {/* Comparison summary card */}
+          <div
+            className="rounded-xl p-4 space-y-4"
+            style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                TESTE A/B {selectedPage ? `— ${selectedPage}` : ''}
+              </h3>
+              {selectedVariant && (
+                <button
+                  onClick={() => setSelectedVariant('')}
+                  className="text-xs px-2 py-1 rounded cursor-pointer transition-colors"
+                  style={{
+                    color: 'var(--purple)',
+                    backgroundColor: 'var(--purple-dim)',
+                    fontFamily: 'var(--mono)',
+                  }}
+                >
+                  Ver todas
+                </button>
+              )}
+            </div>
+
+            {/* Variant comparison grid */}
+            <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${variants.length}, 1fr)` }}>
+              {variants.map((v) => {
+                const isWinner = variants.length > 1 &&
+                  v.convRate === Math.max(...variants.map((x) => x.convRate)) &&
+                  v.convRate > 0;
+                const isSelected = selectedVariant === v.variant;
+                const label = v.variant.includes(':') ? v.variant.split(':')[1] : v.variant;
+                const slug = v.variant.includes(':') ? v.variant.split(':')[0] : '';
+
+                return (
+                  <button
+                    key={v.variant}
+                    onClick={() => setSelectedVariant(isSelected ? '' : v.variant)}
+                    className="rounded-lg p-3 text-left transition-all cursor-pointer"
+                    style={{
+                      backgroundColor: isSelected ? 'var(--purple-dim)' : 'var(--surface-alt)',
+                      border: isSelected
+                        ? '1px solid var(--purple)'
+                        : isWinner
+                          ? '1px solid var(--accent)'
+                          : '1px solid var(--border)',
+                    }}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <span
+                        className="text-sm font-semibold"
+                        style={{ color: isSelected ? 'var(--purple)' : 'var(--text)' }}
+                      >
+                        Variante {label}
+                      </span>
+                      {isWinner && (
+                        <span
+                          className="text-[10px] px-1.5 py-0.5 rounded font-semibold"
+                          style={{
+                            backgroundColor: 'var(--accent-dim)',
+                            color: 'var(--accent)',
+                          }}
+                        >
+                          WINNER
+                        </span>
+                      )}
+                    </div>
+                    {slug && (
+                      <div
+                        className="text-[10px] mb-2"
+                        style={{ color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}
+                      >
+                        {slug}
+                      </div>
+                    )}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span style={{ color: 'var(--text-dim)' }}>Pageviews</span>
+                        <span style={{ fontFamily: 'var(--mono)', color: 'var(--text)' }}>
+                          {formatNumber(v.pageviews)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span style={{ color: 'var(--text-dim)' }}>Leads</span>
+                        <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>
+                          {formatNumber(v.leads)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span style={{ color: 'var(--text-dim)' }}>Conversão</span>
+                        <span
+                          style={{
+                            fontFamily: 'var(--mono)',
+                            color: isWinner ? 'var(--accent)' : 'var(--text)',
+                            fontWeight: isWinner ? 600 : 400,
+                          }}
+                        >
+                          {formatPercent(v.convRate)}
+                        </span>
+                      </div>
+                      {/* Delta vs first variant */}
+                      {variants.length > 1 && variants[0].variant !== v.variant && variants[0].convRate > 0 && (
+                        <div className="flex justify-between text-xs pt-1" style={{ borderTop: '1px solid var(--border)' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>vs {variants[0].variant.includes(':') ? variants[0].variant.split(':')[1] : variants[0].variant}</span>
+                          <span
+                            style={{
+                              fontFamily: 'var(--mono)',
+                              color: v.convRate > variants[0].convRate ? 'var(--accent)' : 'var(--red)',
+                            }}
+                          >
+                            {v.convRate > variants[0].convRate ? '↑' : '↓'}{' '}
+                            {formatPercent(Math.abs(((v.convRate - variants[0].convRate) / variants[0].convRate) * 100))}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 

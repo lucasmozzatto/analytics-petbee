@@ -96,6 +96,15 @@ export interface FunnelSource {
   leads: number;
 }
 
+/* ===== A/B Variants ===== */
+
+export interface ABVariantSummary {
+  variant: string;
+  pageviews: number;
+  leads: number;
+  convRate: number;
+}
+
 /* ===== Pages ===== */
 
 export interface PageRow {

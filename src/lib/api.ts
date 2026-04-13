@@ -6,6 +6,7 @@ import type {
   FunnelData,
   FunnelSource,
   FunnelPageConfig,
+  ABVariantSummary,
   PageRow,
   InsightFull,
   InsightSummary,
@@ -104,13 +105,15 @@ export function getFunil(
   compare?: boolean,
   page?: string,
   hostname?: string,
-  source?: string
+  source?: string,
+  variant?: string
 ): Promise<FunnelData> {
   const params = new URLSearchParams({ startDate, endDate });
   if (compare) params.set('compare', 'true');
   if (page) params.set('page', page);
   if (hostname) params.set('hostname', hostname);
   if (source) params.set('source', source);
+  if (variant) params.set('variant', variant);
   return fetchAPI<FunnelData>(`/api/metrics/funil?${params.toString()}`);
 }
 
@@ -126,6 +129,22 @@ export function getFunilPages(
   const params = new URLSearchParams({ startDate, endDate });
   if (hostname) params.set('hostname', hostname);
   return fetchAPI<{ pages: string[] }>(`/api/metrics/funil/pages?${params.toString()}`);
+}
+
+/**
+ * GET /api/metrics/funil/variants
+ * Returns A/B variant data (pageviews, leads, conversion rate) for a page.
+ */
+export function getFunilVariants(
+  startDate: string,
+  endDate: string,
+  hostname?: string,
+  page?: string
+): Promise<{ variants: ABVariantSummary[] }> {
+  const params = new URLSearchParams({ startDate, endDate });
+  if (hostname) params.set('hostname', hostname);
+  if (page) params.set('page', page);
+  return fetchAPI<{ variants: ABVariantSummary[] }>(`/api/metrics/funil/variants?${params.toString()}`);
 }
 
 /**

@@ -159,6 +159,17 @@ CREATE TABLE IF NOT EXISTS ga4_geo_stats (
   PRIMARY KEY (date_ref, region, city)
 );
 
+-- GA4 A/B Variant Data (pageviews + conversions per variant per page)
+CREATE TABLE IF NOT EXISTS ga4_ab_variants (
+  date_ref TEXT NOT NULL,
+  hostname TEXT NOT NULL DEFAULT '',
+  page_path TEXT NOT NULL,
+  variant TEXT NOT NULL,
+  event_name TEXT NOT NULL,
+  event_count INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (date_ref, hostname, page_path, variant, event_name)
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_sessions_date ON ga4_sessions(date_ref);
 CREATE INDEX IF NOT EXISTS idx_conversions_date ON ga4_conversions(date_ref);
@@ -176,3 +187,5 @@ CREATE INDEX IF NOT EXISTS idx_device_conversions_date ON ga4_device_conversions
 CREATE INDEX IF NOT EXISTS idx_hourly_stats_date ON ga4_hourly_stats(date_ref);
 CREATE INDEX IF NOT EXISTS idx_geo_stats_date ON ga4_geo_stats(date_ref);
 CREATE INDEX IF NOT EXISTS idx_geo_stats_region ON ga4_geo_stats(region);
+CREATE INDEX IF NOT EXISTS idx_ab_variants_date ON ga4_ab_variants(date_ref);
+CREATE INDEX IF NOT EXISTS idx_ab_variants_page ON ga4_ab_variants(hostname, page_path);

@@ -1,4 +1,4 @@
-import type { SessionRow, ConversionRow, PageRow, PageConversionRow, DailyTotalRow, DailyConversionRow, OnboardingStepRow, DeviceStatsRow, DeviceConversionRow, HourlyStatsRow, GeoStatsRow } from './ga4-api';
+import type { SessionRow, ConversionRow, PageRow, PageConversionRow, DailyTotalRow, DailyConversionRow, OnboardingStepRow, DeviceStatsRow, DeviceConversionRow, HourlyStatsRow, GeoStatsRow, ABVariantRow } from './ga4-api';
 
 /**
  * Returns hostname variants for SQL filtering (with and without www.).
@@ -1648,6 +1648,176 @@ export async function queryByGeo(
     bounceRate: ((row.bounce_rate as number) ?? 0) * 100,
     avgSessionDuration: (row.avg_session_duration as number) ?? 0,
   }));
+}
+
+// ── A/B Variant Sync & Query ──
+
+/**
+ * Upserts A/B variant rows into ga4_ab_variants.
+ * Batches in chunks of 100.
+ */
+export async function syncABVariants(db: D1Database, rows: ABVariantRow[]): Promise<number> {
+  if (rows.length === 0) return 0;
+
+  const sql = `
+    INSERT INTO ga4_ab_variants (
+      date_ref, hostname, page_path, variant, event_name, event_count
+    ) VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT (date_ref, hostname, page_path, variant, event_name)
+    DO UPDATE SET
+      event_count = excluded.event_count
+  `;
+
+  const chunks = chunkArray(rows, 100);
+  for (const chunk of chunks) {
+    const stmts = chunk.map((r) =>
+      db.prepare(sql).bind(
+        r.date,
+        r.hostname,
+        r.pagePath,
+        r.variant,
+        r.eventName,
+        r.eventCount
+      )
+    );
+    await db.batch(stmts);
+  }
+
+  return rows.length;
+}
+
+export interface ABVariantSummary {
+  variant: string;
+  pageviews: number;
+  leads: number;
+  convRate: number;
+}
+
+/**
+ * Returns available A/B variants with pageview and lead counts for the given filters.
+ * Used for variant selector UI + comparison summary.
+ */
+export async function queryABVariants(
+  db: D1Database,
+  startDate: string,
+  endDate: string,
+  hostname?: string,
+  pagePath?: string
+): Promise<ABVariantSummary[]> {
+  const where: string[] = ['date_ref >= ?', 'date_ref <= ?'];
+  const binds: string[] = [startDate, endDate];
+
+  if (hostname) {
+    const [h1, h2] = hostnameVariants(hostname);
+    where.push('hostname IN (?, ?)');
+    binds.push(h1, h2);
+  }
+
+  if (pagePath && pagePath !== 'all') {
+    where.push('page_path LIKE ?');
+    binds.push(pagePath + '%');
+  }
+
+  const result = await db
+    .prepare(
+      `SELECT
+        variant,
+        SUM(CASE WHEN event_name = 'ab_variant_set' THEN event_count ELSE 0 END) AS pageviews,
+        SUM(CASE WHEN event_name = 'generate_lead' THEN event_count ELSE 0 END) AS leads
+      FROM ga4_ab_variants
+      WHERE ${where.join(' AND ')}
+      GROUP BY variant
+      HAVING pageviews > 0 OR leads > 0
+      ORDER BY pageviews DESC`
+    )
+    .bind(...binds)
+    .all();
+
+  return (result.results as Record<string, unknown>[]).map((row) => {
+    const pageviews = (row.pageviews as number) ?? 0;
+    const leads = (row.leads as number) ?? 0;
+    return {
+      variant: row.variant as string,
+      pageviews,
+      leads,
+      convRate: pageviews > 0 ? (leads / pageviews) * 100 : 0,
+    };
+  });
+}
+
+/**
+ * Returns funnel data filtered by A/B variant.
+ * Uses ab_variant_set count as the "visitors" anchor for that variant.
+ * Uses generate_lead count from ga4_ab_variants for leads.
+ * Falls back to ga4_page_conversions for other funnel events (no variant breakdown).
+ */
+export async function queryABFunnel(
+  db: D1Database,
+  startDate: string,
+  endDate: string,
+  variant: string,
+  hostname?: string,
+  pagePath?: string
+): Promise<FunnelData> {
+  const variantWhere: string[] = ['date_ref >= ?', 'date_ref <= ?', 'variant = ?'];
+  const variantBinds: string[] = [startDate, endDate, variant];
+
+  if (hostname) {
+    const [h1, h2] = hostnameVariants(hostname);
+    variantWhere.push('hostname IN (?, ?)');
+    variantBinds.push(h1, h2);
+  }
+
+  if (pagePath && pagePath !== 'all') {
+    variantWhere.push('page_path LIKE ?');
+    variantBinds.push(pagePath + '%');
+  }
+
+  // Get variant-specific counts from ga4_ab_variants
+  const variantQuery = db
+    .prepare(
+      `SELECT event_name, SUM(event_count) AS total
+      FROM ga4_ab_variants
+      WHERE ${variantWhere.join(' AND ')}
+      GROUP BY event_name`
+    )
+    .bind(...variantBinds);
+
+  const variantResult = await variantQuery.all();
+
+  const variantCounts: Record<string, number> = {};
+  for (const row of variantResult.results as Record<string, unknown>[]) {
+    variantCounts[row.event_name as string] = (row.total as number) ?? 0;
+  }
+
+  const totalVisitors = variantCounts['ab_variant_set'] ?? 0;
+  const leads = variantCounts['generate_lead'] ?? 0;
+
+  // Build funnel with variant data
+  const stepDefs: { name: string; event: string; count: number }[] = [
+    { name: 'Visitantes', event: 'ab_variant_set', count: totalVisitors },
+    { name: 'Leads', event: 'generate_lead', count: leads },
+  ];
+
+  const steps: FunnelStep[] = stepDefs.map((def) => ({
+    name: def.name,
+    event: def.event,
+    count: def.count,
+    rate: totalVisitors > 0 ? (def.count / totalVisitors) * 100 : 0,
+  }));
+
+  const stepConversions: StepConversion[] = [];
+  for (let i = 0; i < steps.length - 1; i++) {
+    const from = steps[i];
+    const to = steps[i + 1];
+    stepConversions.push({
+      from: from.name,
+      to: to.name,
+      rate: from.count > 0 ? (to.count / from.count) * 100 : 0,
+    });
+  }
+
+  return { steps, stepConversions };
 }
 
 // ── Internal Helpers ──
