@@ -512,7 +512,10 @@ export interface ABVariantRow {
  * Fetches A/B variant data from GA4.
  * Uses customEvent:ab_variant dimension to break down events by variant.
  * Fetches ab_variant_set (session count per variant) and generate_lead (conversion) events.
- * Uses `sessions` metric for ab_variant_set (deduplicated) and `eventCount` for generate_lead.
+ * Fetches both `sessions` and `eventCount` metrics:
+ * - ab_variant_set: uses `sessions` (deduplicated visitor count per variant)
+ * - generate_lead: uses `eventCount` (actual lead count — `sessions` can return 0
+ *   for events that don't initiate sessions, causing GA4 to omit the row entirely)
  * Filters out rows where ab_variant is (not set).
  */
 export async function fetchABVariants(
@@ -531,6 +534,7 @@ export async function fetchABVariants(
     ],
     metrics: [
       { name: 'sessions' },
+      { name: 'eventCount' },
     ],
     dimensionFilter: {
       filter: {
@@ -546,14 +550,21 @@ export async function fetchABVariants(
 
   return response.rows
     .filter((row) => row.dimensionValues[4].value && row.dimensionValues[4].value !== '(not set)')
-    .map((row) => ({
-      date: formatGA4Date(row.dimensionValues[0].value),
-      hostname: row.dimensionValues[1].value || '',
-      pagePath: row.dimensionValues[2].value || '',
-      eventName: row.dimensionValues[3].value || '',
-      variant: row.dimensionValues[4].value || '',
-      eventCount: parseInt(row.metricValues[0].value, 10) || 0,
-    }));
+    .map((row) => {
+      const eventName = row.dimensionValues[3].value || '';
+      const sessions = parseInt(row.metricValues[0].value, 10) || 0;
+      const eventCount = parseInt(row.metricValues[1].value, 10) || 0;
+      return {
+        date: formatGA4Date(row.dimensionValues[0].value),
+        hostname: row.dimensionValues[1].value || '',
+        pagePath: row.dimensionValues[2].value || '',
+        eventName,
+        variant: row.dimensionValues[4].value || '',
+        // ab_variant_set: use sessions (deduplicated visitor count)
+        // generate_lead: use eventCount (actual lead count)
+        eventCount: eventName === 'ab_variant_set' ? sessions : eventCount,
+      };
+    });
 }
 
 // ── Onboarding Steps Fetcher ──
