@@ -5,6 +5,7 @@ import type { TrafegoResponse } from '../types';
 import TimeWindowPicker from '../components/TimeWindowPicker';
 import CompareToggle from '../components/CompareToggle';
 import ChannelTable from '../components/ChannelTable';
+import ChannelStackedAreaChart from '../components/ChannelStackedAreaChart';
 import SourceMediumTable from '../components/SourceMediumTable';
 
 export default function Trafego() {
@@ -38,6 +39,7 @@ export default function Trafego() {
 
       {data && !loading && (
         <>
+          <ChannelStackedAreaChart data={data.byChannelDaily} />
           <ChannelTable
             data={data.byChannel}
             previous={compare ? data.previous?.byChannel : undefined}

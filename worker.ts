@@ -35,6 +35,7 @@ import {
   queryKPIs,
   queryTimeseries,
   queryByChannel,
+  queryTimeseriesByChannel,
   queryBySourceMedium,
   queryByUTMDimension,
   queryFunnel,
@@ -185,14 +186,16 @@ export default {
         const { startDate, endDate } = getDateParams(url);
         const compare = url.searchParams.get("compare") === "true";
 
-        const [byChannel, bySourceMedium] = await Promise.all([
+        const [byChannel, bySourceMedium, byChannelDaily] = await Promise.all([
           queryByChannel(env.DB, startDate, endDate),
           queryBySourceMedium(env.DB, startDate, endDate),
+          queryTimeseriesByChannel(env.DB, startDate, endDate),
         ]);
 
         const result: Record<string, unknown> = {
           byChannel,
           bySourceMedium,
+          byChannelDaily,
         };
 
         if (compare) {

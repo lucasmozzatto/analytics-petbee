@@ -163,9 +163,16 @@ export interface VisaoGeralResponse {
   previous?: { kpis: KPIs };
 }
 
+export interface ChannelDailyPoint {
+  date: string;
+  channel: string;
+  sessions: number;
+}
+
 export interface TrafegoResponse {
   byChannel: ChannelRow[];
   bySourceMedium: SourceMediumRow[];
+  byChannelDaily: ChannelDailyPoint[];
   previous?: { byChannel: ChannelRow[] };
 }
 

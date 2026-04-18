@@ -462,6 +462,41 @@ export async function queryByChannel(
   });
 }
 
+export interface ChannelDailyPoint {
+  date: string;
+  channel: string;
+  sessions: number;
+}
+
+/**
+ * Returns daily sessions grouped by channel group for stacked area charts.
+ */
+export async function queryTimeseriesByChannel(
+  db: D1Database,
+  startDate: string,
+  endDate: string
+): Promise<ChannelDailyPoint[]> {
+  const result = await db
+    .prepare(
+      `SELECT
+        date_ref AS date,
+        channel_group AS channel,
+        SUM(sessions) AS sessions
+      FROM ga4_sessions
+      WHERE date_ref >= ? AND date_ref <= ?
+      GROUP BY date_ref, channel_group
+      ORDER BY date_ref ASC, sessions DESC`
+    )
+    .bind(startDate, endDate)
+    .all();
+
+  return (result.results as Record<string, unknown>[]).map((row) => ({
+    date: row.date as string,
+    channel: (row.channel as string) ?? '(unknown)',
+    sessions: (row.sessions as number) ?? 0,
+  }));
+}
+
 export interface SourceMediumRow {
   source: string;
   medium: string;
