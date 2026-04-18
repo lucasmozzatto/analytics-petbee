@@ -10,9 +10,30 @@ import {
 } from 'recharts';
 import { useTimeWindow } from '../hooks/useGA4Data';
 import { getBlog } from '../lib/api';
-import type { BlogResponse } from '../types';
+import type { BlogGranularity, BlogResponse } from '../types';
 import TimeWindowPicker from '../components/TimeWindowPicker';
 import { formatDateBR, formatNumber, formatPercent, formatDuration } from '../lib/format';
+
+const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+function formatPeriodTick(value: string): string {
+  // Monthly bucket: YYYY-MM
+  if (value.length === 7) {
+    const [y, m] = value.split('-');
+    return `${MONTH_LABELS[parseInt(m, 10) - 1]}/${y.slice(2)}`;
+  }
+  // Daily bucket: YYYY-MM-DD
+  const parts = value.split('-');
+  return `${parts[2]}/${parts[1]}`;
+}
+
+function formatPeriodLabel(value: string): string {
+  if (value.length === 7) {
+    const [y, m] = value.split('-');
+    return `${MONTH_LABELS[parseInt(m, 10) - 1]}/${y}`;
+  }
+  return formatDateBR(value);
+}
 
 function bounceColor(rate: number): string {
   if (rate < 40) return 'var(--accent)';
@@ -22,22 +43,24 @@ function bounceColor(rate: number): string {
 
 export default function Blog() {
   const { window, setWindow, startDate, endDate, customStart, customEnd, setCustomRange } = useTimeWindow('30d');
+  const [granularity, setGranularity] = useState<BlogGranularity>('daily');
   const [data, setData] = useState<BlogResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    getBlog(startDate, endDate, 10)
+    getBlog(startDate, endDate, 10, granularity)
       .then(setData)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [startDate, endDate]);
+  }, [startDate, endDate, granularity]);
 
   const totalViews = data?.timeseries.reduce((acc, p) => acc + p.views, 0) ?? 0;
   const peak = data?.timeseries.reduce(
     (max, p) => (p.views > max.views ? p : max),
     { date: '', views: 0 },
   );
+  const peakLabel = granularity === 'monthly' ? 'Pico mensal' : 'Pico diário';
 
   return (
     <div className="space-y-6">
@@ -48,15 +71,18 @@ export default function Blog() {
         </p>
       </div>
 
-      <TimeWindowPicker
-        value={window}
-        onChange={setWindow}
-        startDate={startDate}
-        endDate={endDate}
-        customStart={customStart}
-        customEnd={customEnd}
-        onCustomRange={setCustomRange}
-      />
+      <div className="flex items-center gap-4 flex-wrap">
+        <TimeWindowPicker
+          value={window}
+          onChange={setWindow}
+          startDate={startDate}
+          endDate={endDate}
+          customStart={customStart}
+          customEnd={customEnd}
+          onCustomRange={setCustomRange}
+        />
+        <GranularityToggle value={granularity} onChange={setGranularity} />
+      </div>
 
       {loading && (
         <div className="text-sm" style={{ color: 'var(--text-muted)' }}>Carregando...</div>
@@ -67,9 +93,9 @@ export default function Blog() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <SummaryCard label="Views totais (/blog)" value={formatNumber(totalViews)} />
             <SummaryCard
-              label="Pico diário"
+              label={peakLabel}
               value={peak && peak.views > 0 ? formatNumber(peak.views) : '—'}
-              hint={peak && peak.date ? formatDateBR(peak.date) : undefined}
+              hint={peak && peak.date ? formatPeriodLabel(peak.date) : undefined}
             />
             <SummaryCard label="Posts no top 10" value={String(data.topPages.length)} />
           </div>
@@ -85,7 +111,7 @@ export default function Blog() {
               className="text-xs font-semibold tracking-wider mb-4"
               style={{ color: 'var(--text-muted)' }}
             >
-              VIEWS DIÁRIAS EM /BLOG
+              {granularity === 'monthly' ? 'VIEWS MENSAIS EM /BLOG' : 'VIEWS DIÁRIAS EM /BLOG'}
             </h3>
             <ResponsiveContainer width="100%" height={260}>
               <AreaChart data={data.timeseries}>
@@ -98,10 +124,7 @@ export default function Blog() {
                 <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
                 <XAxis
                   dataKey="date"
-                  tickFormatter={(v: string) => {
-                    const parts = v.split('-');
-                    return `${parts[2]}/${parts[1]}`;
-                  }}
+                  tickFormatter={(v: string) => formatPeriodTick(v)}
                   fontSize={12}
                   fontFamily="var(--mono)"
                   stroke="var(--text-muted)"
@@ -124,7 +147,7 @@ export default function Blog() {
                     fontFamily: 'var(--mono)',
                     fontSize: '12px',
                   }}
-                  labelFormatter={(label: any) => formatDateBR(String(label))}
+                  labelFormatter={(label: any) => formatPeriodLabel(String(label))}
                   formatter={(value: any) => [formatNumber(Number(value)), 'Views']}
                 />
                 <Area
@@ -223,6 +246,38 @@ export default function Blog() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+interface GranularityToggleProps {
+  value: BlogGranularity;
+  onChange: (g: BlogGranularity) => void;
+}
+
+function GranularityToggle({ value, onChange }: GranularityToggleProps) {
+  const options: { label: string; value: BlogGranularity }[] = [
+    { label: 'Diário', value: 'daily' },
+    { label: 'Mensal', value: 'monthly' },
+  ];
+  return (
+    <div className="flex gap-1">
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          onClick={() => onChange(opt.value)}
+          className="px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer"
+          style={{
+            fontFamily: 'var(--mono)',
+            fontSize: '12px',
+            backgroundColor: value === opt.value ? 'var(--surface-alt)' : 'transparent',
+            border: value === opt.value ? '1px solid var(--border-light)' : '1px solid transparent',
+            color: value === opt.value ? 'var(--text)' : 'var(--text-muted)',
+          }}
+        >
+          {opt.label}
+        </button>
+      ))}
     </div>
   );
 }

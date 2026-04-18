@@ -9,6 +9,7 @@ import type {
   ABVariantSummary,
   PageRow,
   BlogResponse,
+  BlogGranularity,
   InsightFull,
   InsightSummary,
   OnboardingFunnelData,
@@ -192,12 +193,14 @@ export function getPaginas(
 export function getBlog(
   startDate: string,
   endDate: string,
-  limit = 10
+  limit = 10,
+  granularity: BlogGranularity = 'daily'
 ): Promise<BlogResponse> {
   const params = new URLSearchParams({
     startDate,
     endDate,
     limit: String(limit),
+    granularity,
   });
   return fetchAPI<BlogResponse>(`/api/metrics/blog?${params.toString()}`);
 }

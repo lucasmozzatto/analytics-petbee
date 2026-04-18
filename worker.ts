@@ -429,13 +429,15 @@ export default {
       if (pathname === "/api/metrics/blog" && method === "GET") {
         const { startDate, endDate } = getDateParams(url);
         const limit = parseInt(url.searchParams.get("limit") ?? "10", 10);
+        const granularity =
+          url.searchParams.get("granularity") === "monthly" ? "monthly" : "daily";
 
         const [timeseries, topPages] = await Promise.all([
-          queryBlogTimeseries(env.DB, startDate, endDate),
+          queryBlogTimeseries(env.DB, startDate, endDate, granularity),
           queryBlogTopPages(env.DB, startDate, endDate, limit),
         ]);
 
-        return jsonResponse({ timeseries, topPages });
+        return jsonResponse({ timeseries, topPages, granularity });
       }
 
       // ────────────────────────────────────────────────

@@ -99,7 +99,12 @@ export const TIME_WINDOWS: TimeWindow[] = [
   { label: 'Este mês', value: 'this_month' },
   { label: 'Mês passado', value: 'last_month' },
   ...getPastMonthOptions(),
+  { label: '12 meses', value: '12m' },
+  { label: 'Tudo', value: 'all' },
 ];
+
+// Anchor date for the "Tudo" window. Earlier than the earliest GA4 sync.
+const ALL_TIME_START = '2024-01-01';
 
 interface UseTimeWindowResult {
   window: string;
@@ -185,6 +190,17 @@ export function useTimeWindow(defaultWindow = '7d', minDate?: string): UseTimeWi
         end = endOfMonth(lastMonth);
         break;
       }
+
+      case '12m':
+        start = subMonths(today, 12);
+        end = today;
+        break;
+
+      case 'all':
+        return {
+          startDate: minDate && minDate > ALL_TIME_START ? minDate : ALL_TIME_START,
+          endDate: format(today, 'yyyy-MM-dd'),
+        };
 
       default: {
         // Handle month_N (N months ago)

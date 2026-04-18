@@ -827,9 +827,12 @@ export async function queryPages(
 // ── Blog Helpers ──
 
 export interface BlogTimeseriesPoint {
+  // YYYY-MM-DD when granularity=daily, YYYY-MM when granularity=monthly
   date: string;
   views: number;
 }
+
+export type BlogGranularity = 'daily' | 'monthly';
 
 export interface BlogTopPage {
   pagePath: string;
@@ -840,23 +843,27 @@ export interface BlogTopPage {
 }
 
 /**
- * Daily total views for /blog* paths.
+ * Total views for /blog* paths grouped by day or month.
  */
 export async function queryBlogTimeseries(
   db: D1Database,
   startDate: string,
-  endDate: string
+  endDate: string,
+  granularity: BlogGranularity = 'daily'
 ): Promise<BlogTimeseriesPoint[]> {
+  const bucket =
+    granularity === 'monthly' ? "substr(date_ref, 1, 7)" : "date_ref";
+
   const result = await db
     .prepare(
       `SELECT
-        date_ref AS date,
+        ${bucket} AS date,
         SUM(screen_page_views) AS views
       FROM ga4_pages
       WHERE date_ref >= ? AND date_ref <= ?
         AND page_path LIKE '/blog%'
-      GROUP BY date_ref
-      ORDER BY date_ref ASC`
+      GROUP BY ${bucket}
+      ORDER BY date ASC`
     )
     .bind(startDate, endDate)
     .all();
