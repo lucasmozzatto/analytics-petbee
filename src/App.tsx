@@ -5,6 +5,7 @@ import Trafego from './pages/Trafego';
 import UTMs from './pages/UTMs';
 import Funil from './pages/Funil';
 import Paginas from './pages/Paginas';
+import Blog from './pages/Blog';
 import Onboarding from './pages/Onboarding';
 import Dispositivos from './pages/Dispositivos';
 import Horarios from './pages/Horarios';
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/funil" element={<Funil />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/paginas" element={<Paginas />} />
+          <Route path="/blog" element={<Blog />} />
           <Route path="/dispositivos" element={<Dispositivos />} />
           <Route path="/horarios" element={<Horarios />} />
           <Route path="/geografia" element={<Geografia />} />

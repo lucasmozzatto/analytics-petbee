@@ -115,6 +115,27 @@ export interface PageRow {
   bounceRate: number;
 }
 
+/* ===== Blog ===== */
+
+export interface BlogTimeseriesPoint {
+  date: string;
+  views: number;
+}
+
+export interface BlogTopPage {
+  pagePath: string;
+  pageTitle: string;
+  views: number;
+  avgTimeOnPage: number;
+  bounceRate: number;
+  // TODO: adicionar `leads` quando atribuição blog → generate_lead estiver disponível
+}
+
+export interface BlogResponse {
+  timeseries: BlogTimeseriesPoint[];
+  topPages: BlogTopPage[];
+}
+
 /* ===== AI Insights ===== */
 
 export interface InsightSummary {

@@ -8,6 +8,7 @@ import type {
   FunnelPageConfig,
   ABVariantSummary,
   PageRow,
+  BlogResponse,
   InsightFull,
   InsightSummary,
   OnboardingFunnelData,
@@ -182,6 +183,23 @@ export function getPaginas(
   return fetchAPI<{ data: PageRow[]; total: number }>(
     `/api/metrics/paginas?${params.toString()}`
   );
+}
+
+/**
+ * GET /api/metrics/blog
+ * Returns daily views for /blog* paths and the top N posts in the period.
+ */
+export function getBlog(
+  startDate: string,
+  endDate: string,
+  limit = 10
+): Promise<BlogResponse> {
+  const params = new URLSearchParams({
+    startDate,
+    endDate,
+    limit: String(limit),
+  });
+  return fetchAPI<BlogResponse>(`/api/metrics/blog?${params.toString()}`);
 }
 
 /**

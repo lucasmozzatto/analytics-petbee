@@ -45,6 +45,8 @@ import {
   queryBlockedFunnelPages,
   updateBlockedFunnelPages,
   queryPages,
+  queryBlogTimeseries,
+  queryBlogTopPages,
   queryInsightHistory,
   queryInsight,
   saveInsight,
@@ -416,6 +418,24 @@ export default {
           pageSize,
         );
         return jsonResponse(result);
+      }
+
+      // ────────────────────────────────────────────────
+      // GET /api/metrics/blog
+      // ────────────────────────────────────────────────
+      // TODO: leads atribuídos ao blog (sessões com pageview em /blog* que
+      // depois geram generate_lead) — exige join entre ga4_pages e ga4_conversions
+      // por session/cliente, ainda não disponível na sync atual.
+      if (pathname === "/api/metrics/blog" && method === "GET") {
+        const { startDate, endDate } = getDateParams(url);
+        const limit = parseInt(url.searchParams.get("limit") ?? "10", 10);
+
+        const [timeseries, topPages] = await Promise.all([
+          queryBlogTimeseries(env.DB, startDate, endDate),
+          queryBlogTopPages(env.DB, startDate, endDate, limit),
+        ]);
+
+        return jsonResponse({ timeseries, topPages });
       }
 
       // ────────────────────────────────────────────────

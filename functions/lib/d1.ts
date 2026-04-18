@@ -824,6 +824,91 @@ export async function queryPages(
   return { data, total, page, pageSize };
 }
 
+// ── Blog Helpers ──
+
+export interface BlogTimeseriesPoint {
+  date: string;
+  views: number;
+}
+
+export interface BlogTopPage {
+  pagePath: string;
+  pageTitle: string;
+  views: number;
+  avgTimeOnPage: number;
+  bounceRate: number;
+}
+
+/**
+ * Daily total views for /blog* paths.
+ */
+export async function queryBlogTimeseries(
+  db: D1Database,
+  startDate: string,
+  endDate: string
+): Promise<BlogTimeseriesPoint[]> {
+  const result = await db
+    .prepare(
+      `SELECT
+        date_ref AS date,
+        SUM(screen_page_views) AS views
+      FROM ga4_pages
+      WHERE date_ref >= ? AND date_ref <= ?
+        AND page_path LIKE '/blog%'
+      GROUP BY date_ref
+      ORDER BY date_ref ASC`
+    )
+    .bind(startDate, endDate)
+    .all();
+
+  return (result.results as Record<string, unknown>[]).map((row) => ({
+    date: row.date as string,
+    views: (row.views as number) ?? 0,
+  }));
+}
+
+/**
+ * Top blog posts ranked by total views in the period.
+ */
+export async function queryBlogTopPages(
+  db: D1Database,
+  startDate: string,
+  endDate: string,
+  limit = 10
+): Promise<BlogTopPage[]> {
+  const result = await db
+    .prepare(
+      `SELECT
+        page_path AS pagePath,
+        page_title AS pageTitle,
+        SUM(screen_page_views) AS views,
+        CASE WHEN SUM(screen_page_views) > 0
+          THEN SUM(avg_time_on_page * screen_page_views) / SUM(screen_page_views)
+          ELSE 0
+        END AS avgTimeOnPage,
+        CASE WHEN SUM(screen_page_views) > 0
+          THEN SUM(bounce_rate * screen_page_views) / SUM(screen_page_views)
+          ELSE 0
+        END AS bounceRate
+      FROM ga4_pages
+      WHERE date_ref >= ? AND date_ref <= ?
+        AND page_path LIKE '/blog%'
+      GROUP BY page_path
+      ORDER BY views DESC
+      LIMIT ?`
+    )
+    .bind(startDate, endDate, limit)
+    .all();
+
+  return (result.results as Record<string, unknown>[]).map((row) => ({
+    pagePath: row.pagePath as string,
+    pageTitle: (row.pageTitle as string) ?? '',
+    views: (row.views as number) ?? 0,
+    avgTimeOnPage: (row.avgTimeOnPage as number) ?? 0,
+    bounceRate: ((row.bounceRate as number) ?? 0) * 100,
+  }));
+}
+
 // ── Insight Helpers ──
 
 export interface InsightSummary {
