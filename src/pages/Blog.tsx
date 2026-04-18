@@ -4,8 +4,8 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
-  BarChart,
-  Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -105,7 +105,7 @@ export default function Blog() {
         )}
         {!monthlyLoading && monthly && monthly.length > 0 && (
           <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={monthly} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+            <LineChart data={monthly} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
               <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
               <XAxis
                 dataKey="date"
@@ -126,7 +126,7 @@ export default function Blog() {
                 tickFormatter={(v: number) => formatNumber(v)}
               />
               <Tooltip
-                cursor={{ fill: 'var(--surface-alt)' }}
+                cursor={{ stroke: 'var(--border-light)', strokeWidth: 1 }}
                 contentStyle={{
                   backgroundColor: 'var(--surface-alt)',
                   border: '1px solid var(--border-light)',
@@ -137,8 +137,15 @@ export default function Blog() {
                 labelFormatter={(label: any) => formatMonthLabel(String(label))}
                 formatter={(value: any) => [formatNumber(Number(value)), 'Views']}
               />
-              <Bar dataKey="views" fill="var(--accent)" radius={[4, 4, 0, 0]} />
-            </BarChart>
+              <Line
+                type="monotone"
+                dataKey="views"
+                stroke="var(--accent)"
+                strokeWidth={2}
+                dot={{ r: 4, fill: 'var(--accent)', strokeWidth: 0 }}
+                activeDot={{ r: 6 }}
+              />
+            </LineChart>
           </ResponsiveContainer>
         )}
         {!monthlyLoading && (!monthly || monthly.length === 0) && (
