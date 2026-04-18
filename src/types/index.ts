@@ -117,10 +117,8 @@ export interface PageRow {
 
 /* ===== Blog ===== */
 
-export type BlogGranularity = 'daily' | 'monthly';
-
 export interface BlogTimeseriesPoint {
-  // YYYY-MM-DD when daily, YYYY-MM when monthly
+  // YYYY-MM-DD for daily timeseries, YYYY-MM for monthly timeseries
   date: string;
   views: number;
 }
@@ -137,7 +135,6 @@ export interface BlogTopPage {
 export interface BlogResponse {
   timeseries: BlogTimeseriesPoint[];
   topPages: BlogTopPage[];
-  granularity: BlogGranularity;
 }
 
 /* ===== AI Insights ===== */

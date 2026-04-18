@@ -1,38 +1,36 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { format } from 'date-fns';
 import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
 } from 'recharts';
 import { useTimeWindow } from '../hooks/useGA4Data';
-import { getBlog } from '../lib/api';
-import type { BlogGranularity, BlogResponse } from '../types';
+import { getBlog, getBlogMonthly } from '../lib/api';
+import type { BlogResponse, BlogTimeseriesPoint } from '../types';
 import TimeWindowPicker from '../components/TimeWindowPicker';
 import { formatDateBR, formatNumber, formatPercent, formatDuration } from '../lib/format';
 
 const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-function formatPeriodTick(value: string): string {
-  // Monthly bucket: YYYY-MM
-  if (value.length === 7) {
-    const [y, m] = value.split('-');
-    return `${MONTH_LABELS[parseInt(m, 10) - 1]}/${y.slice(2)}`;
-  }
-  // Daily bucket: YYYY-MM-DD
-  const parts = value.split('-');
-  return `${parts[2]}/${parts[1]}`;
+// Anchor for the long-horizon monthly view; matches ALL_TIME_START in useGA4Data.
+const MONTHLY_START = '2024-01-01';
+
+function formatMonthTick(value: string): string {
+  // value is YYYY-MM
+  const [y, m] = value.split('-');
+  return `${MONTH_LABELS[parseInt(m, 10) - 1]}/${y.slice(2)}`;
 }
 
-function formatPeriodLabel(value: string): string {
-  if (value.length === 7) {
-    const [y, m] = value.split('-');
-    return `${MONTH_LABELS[parseInt(m, 10) - 1]}/${y}`;
-  }
-  return formatDateBR(value);
+function formatMonthLabel(value: string): string {
+  const [y, m] = value.split('-');
+  return `${MONTH_LABELS[parseInt(m, 10) - 1]}/${y}`;
 }
 
 function bounceColor(rate: number): string {
@@ -43,24 +41,34 @@ function bounceColor(rate: number): string {
 
 export default function Blog() {
   const { window, setWindow, startDate, endDate, customStart, customEnd, setCustomRange } = useTimeWindow('30d');
-  const [granularity, setGranularity] = useState<BlogGranularity>('daily');
   const [data, setData] = useState<BlogResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [monthly, setMonthly] = useState<BlogTimeseriesPoint[] | null>(null);
+  const [monthlyLoading, setMonthlyLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    getBlog(startDate, endDate, 10, granularity)
+    getBlog(startDate, endDate, 10)
       .then(setData)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [startDate, endDate, granularity]);
+  }, [startDate, endDate]);
+
+  const monthlyEnd = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
+
+  useEffect(() => {
+    setMonthlyLoading(true);
+    getBlogMonthly(MONTHLY_START, monthlyEnd)
+      .then(setMonthly)
+      .catch(console.error)
+      .finally(() => setMonthlyLoading(false));
+  }, [monthlyEnd]);
 
   const totalViews = data?.timeseries.reduce((acc, p) => acc + p.views, 0) ?? 0;
   const peak = data?.timeseries.reduce(
     (max, p) => (p.views > max.views ? p : max),
     { date: '', views: 0 },
   );
-  const peakLabel = granularity === 'monthly' ? 'Pico mensal' : 'Pico diário';
 
   return (
     <div className="space-y-6">
@@ -71,18 +79,85 @@ export default function Blog() {
         </p>
       </div>
 
-      <div className="flex items-center gap-4 flex-wrap">
-        <TimeWindowPicker
-          value={window}
-          onChange={setWindow}
-          startDate={startDate}
-          endDate={endDate}
-          customStart={customStart}
-          customEnd={customEnd}
-          onCustomRange={setCustomRange}
-        />
-        <GranularityToggle value={granularity} onChange={setGranularity} />
+      {/* Crescimento mensal: visão estratégica de longo prazo, independente do TimeWindowPicker */}
+      <div
+        className="rounded-xl p-6 fade-up"
+        style={{
+          backgroundColor: 'var(--surface)',
+          border: '1px solid var(--border)',
+        }}
+      >
+        <div className="flex items-baseline justify-between mb-4">
+          <h3
+            className="text-xs font-semibold tracking-wider"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            CRESCIMENTO MENSAL — VIEWS EM /BLOG
+          </h3>
+          <span className="text-[10px]" style={{ color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
+            desde {formatDateBR(MONTHLY_START)}
+          </span>
+        </div>
+        {monthlyLoading && (
+          <div className="text-sm py-12 text-center" style={{ color: 'var(--text-muted)' }}>
+            Carregando...
+          </div>
+        )}
+        {!monthlyLoading && monthly && monthly.length > 0 && (
+          <ResponsiveContainer width="100%" height={400}>
+            <BarChart data={monthly} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+              <XAxis
+                dataKey="date"
+                tickFormatter={formatMonthTick}
+                fontSize={12}
+                fontFamily="var(--mono)"
+                stroke="var(--text-muted)"
+                tickLine={false}
+                axisLine={false}
+                interval={0}
+              />
+              <YAxis
+                fontSize={12}
+                fontFamily="var(--mono)"
+                stroke="var(--text-muted)"
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(v: number) => formatNumber(v)}
+              />
+              <Tooltip
+                cursor={{ fill: 'var(--surface-alt)' }}
+                contentStyle={{
+                  backgroundColor: 'var(--surface-alt)',
+                  border: '1px solid var(--border-light)',
+                  borderRadius: '8px',
+                  fontFamily: 'var(--mono)',
+                  fontSize: '12px',
+                }}
+                labelFormatter={(label: any) => formatMonthLabel(String(label))}
+                formatter={(value: any) => [formatNumber(Number(value)), 'Views']}
+              />
+              <Bar dataKey="views" fill="var(--accent)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+        {!monthlyLoading && (!monthly || monthly.length === 0) && (
+          <div className="text-sm py-12 text-center" style={{ color: 'var(--text-muted)' }}>
+            Sem dados de /blog ainda.
+          </div>
+        )}
       </div>
+
+      {/* Visão de período: ajustável pelo TimeWindowPicker */}
+      <TimeWindowPicker
+        value={window}
+        onChange={setWindow}
+        startDate={startDate}
+        endDate={endDate}
+        customStart={customStart}
+        customEnd={customEnd}
+        onCustomRange={setCustomRange}
+      />
 
       {loading && (
         <div className="text-sm" style={{ color: 'var(--text-muted)' }}>Carregando...</div>
@@ -93,9 +168,9 @@ export default function Blog() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <SummaryCard label="Views totais (/blog)" value={formatNumber(totalViews)} />
             <SummaryCard
-              label={peakLabel}
+              label="Pico diário"
               value={peak && peak.views > 0 ? formatNumber(peak.views) : '—'}
-              hint={peak && peak.date ? formatPeriodLabel(peak.date) : undefined}
+              hint={peak && peak.date ? formatDateBR(peak.date) : undefined}
             />
             <SummaryCard label="Posts no top 10" value={String(data.topPages.length)} />
           </div>
@@ -111,7 +186,7 @@ export default function Blog() {
               className="text-xs font-semibold tracking-wider mb-4"
               style={{ color: 'var(--text-muted)' }}
             >
-              {granularity === 'monthly' ? 'VIEWS MENSAIS EM /BLOG' : 'VIEWS DIÁRIAS EM /BLOG'}
+              VIEWS DIÁRIAS EM /BLOG
             </h3>
             <ResponsiveContainer width="100%" height={260}>
               <AreaChart data={data.timeseries}>
@@ -124,7 +199,10 @@ export default function Blog() {
                 <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
                 <XAxis
                   dataKey="date"
-                  tickFormatter={(v: string) => formatPeriodTick(v)}
+                  tickFormatter={(v: string) => {
+                    const parts = v.split('-');
+                    return `${parts[2]}/${parts[1]}`;
+                  }}
                   fontSize={12}
                   fontFamily="var(--mono)"
                   stroke="var(--text-muted)"
@@ -147,7 +225,7 @@ export default function Blog() {
                     fontFamily: 'var(--mono)',
                     fontSize: '12px',
                   }}
-                  labelFormatter={(label: any) => formatPeriodLabel(String(label))}
+                  labelFormatter={(label: any) => formatDateBR(String(label))}
                   formatter={(value: any) => [formatNumber(Number(value)), 'Views']}
                 />
                 <Area
@@ -246,38 +324,6 @@ export default function Blog() {
           </div>
         </>
       )}
-    </div>
-  );
-}
-
-interface GranularityToggleProps {
-  value: BlogGranularity;
-  onChange: (g: BlogGranularity) => void;
-}
-
-function GranularityToggle({ value, onChange }: GranularityToggleProps) {
-  const options: { label: string; value: BlogGranularity }[] = [
-    { label: 'Diário', value: 'daily' },
-    { label: 'Mensal', value: 'monthly' },
-  ];
-  return (
-    <div className="flex gap-1">
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          onClick={() => onChange(opt.value)}
-          className="px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer"
-          style={{
-            fontFamily: 'var(--mono)',
-            fontSize: '12px',
-            backgroundColor: value === opt.value ? 'var(--surface-alt)' : 'transparent',
-            border: value === opt.value ? '1px solid var(--border-light)' : '1px solid transparent',
-            color: value === opt.value ? 'var(--text)' : 'var(--text-muted)',
-          }}
-        >
-          {opt.label}
-        </button>
-      ))}
     </div>
   );
 }

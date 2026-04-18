@@ -429,15 +429,28 @@ export default {
       if (pathname === "/api/metrics/blog" && method === "GET") {
         const { startDate, endDate } = getDateParams(url);
         const limit = parseInt(url.searchParams.get("limit") ?? "10", 10);
-        const granularity =
-          url.searchParams.get("granularity") === "monthly" ? "monthly" : "daily";
 
         const [timeseries, topPages] = await Promise.all([
-          queryBlogTimeseries(env.DB, startDate, endDate, granularity),
+          queryBlogTimeseries(env.DB, startDate, endDate, "daily"),
           queryBlogTopPages(env.DB, startDate, endDate, limit),
         ]);
 
-        return jsonResponse({ timeseries, topPages, granularity });
+        return jsonResponse({ timeseries, topPages });
+      }
+
+      // ────────────────────────────────────────────────
+      // GET /api/metrics/blog/monthly
+      // ────────────────────────────────────────────────
+      // Long-horizon monthly view independent of the page's TimeWindowPicker.
+      if (pathname === "/api/metrics/blog/monthly" && method === "GET") {
+        const { startDate, endDate } = getDateParams(url);
+        const timeseries = await queryBlogTimeseries(
+          env.DB,
+          startDate,
+          endDate,
+          "monthly",
+        );
+        return jsonResponse(timeseries);
       }
 
       // ────────────────────────────────────────────────

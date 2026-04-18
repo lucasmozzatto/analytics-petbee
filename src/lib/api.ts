@@ -9,7 +9,7 @@ import type {
   ABVariantSummary,
   PageRow,
   BlogResponse,
-  BlogGranularity,
+  BlogTimeseriesPoint,
   InsightFull,
   InsightSummary,
   OnboardingFunnelData,
@@ -193,16 +193,28 @@ export function getPaginas(
 export function getBlog(
   startDate: string,
   endDate: string,
-  limit = 10,
-  granularity: BlogGranularity = 'daily'
+  limit = 10
 ): Promise<BlogResponse> {
   const params = new URLSearchParams({
     startDate,
     endDate,
     limit: String(limit),
-    granularity,
   });
   return fetchAPI<BlogResponse>(`/api/metrics/blog?${params.toString()}`);
+}
+
+/**
+ * GET /api/metrics/blog/monthly
+ * Monthly buckets of /blog* views over a long horizon, independent of the page's time window picker.
+ */
+export function getBlogMonthly(
+  startDate: string,
+  endDate: string
+): Promise<BlogTimeseriesPoint[]> {
+  const params = new URLSearchParams({ startDate, endDate });
+  return fetchAPI<BlogTimeseriesPoint[]>(
+    `/api/metrics/blog/monthly?${params.toString()}`,
+  );
 }
 
 /**
