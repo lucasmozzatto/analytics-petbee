@@ -40,6 +40,7 @@ export default function Trafego() {
   const [loading, setLoading] = useState(true);
   const [monthly, setMonthly] = useState<TrafegoMonthlyPoint[] | null>(null);
   const [monthlyLoading, setMonthlyLoading] = useState(true);
+  const [selectedChannels, setSelectedChannels] = useState<Set<string> | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -58,6 +59,61 @@ export default function Trafego() {
       .catch(console.error)
       .finally(() => setMonthlyLoading(false));
   }, [monthlyEnd]);
+
+  // Channels sorted by total sessions DESC — used for chip order.
+  const channels = useMemo(() => {
+    if (!monthly) return [];
+    const totals = new Map<string, number>();
+    for (const row of monthly) {
+      const ch = row.channel || '(unknown)';
+      totals.set(ch, (totals.get(ch) ?? 0) + row.sessions);
+    }
+    return Array.from(totals.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([name]) => name);
+  }, [monthly]);
+
+  // Initialize selection to all channels once data arrives.
+  useEffect(() => {
+    if (channels.length > 0 && selectedChannels === null) {
+      setSelectedChannels(new Set(channels));
+    }
+  }, [channels, selectedChannels]);
+
+  // Aggregate monthly sessions, summing only the selected channels.
+  const monthlyAggregated = useMemo(() => {
+    if (!monthly) return [];
+    const filterSet = selectedChannels ?? new Set(channels);
+    const byMonth = new Map<string, number>();
+    for (const row of monthly) {
+      if (!filterSet.has(row.channel || '(unknown)')) continue;
+      byMonth.set(row.date, (byMonth.get(row.date) ?? 0) + row.sessions);
+    }
+    return Array.from(byMonth.entries())
+      .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+      .map(([date, sessions]) => ({ date, sessions }));
+  }, [monthly, selectedChannels, channels]);
+
+  function toggleChannel(channel: string) {
+    setSelectedChannels((prev) => {
+      const base = prev ?? new Set(channels);
+      const next = new Set(base);
+      if (next.has(channel)) {
+        // Don't allow zero selection — chart would be empty.
+        if (next.size === 1) return next;
+        next.delete(channel);
+      } else {
+        next.add(channel);
+      }
+      return next;
+    });
+  }
+
+  const allSelected = selectedChannels && channels.length > 0 && selectedChannels.size === channels.length;
+
+  function selectAll() {
+    setSelectedChannels(new Set(channels));
+  }
 
   return (
     <div className="space-y-6">
@@ -85,14 +141,52 @@ export default function Trafego() {
             desde {formatDateBR(MONTHLY_START)}
           </span>
         </div>
+
+        {channels.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <button
+              type="button"
+              onClick={selectAll}
+              className="px-2.5 py-1 rounded-md text-[11px] transition-colors"
+              style={{
+                fontFamily: 'var(--mono)',
+                backgroundColor: allSelected ? 'var(--surface-alt)' : 'transparent',
+                border: `1px solid ${allSelected ? 'var(--border-light)' : 'var(--border)'}`,
+                color: allSelected ? 'var(--text)' : 'var(--text-muted)',
+              }}
+            >
+              Todos
+            </button>
+            {channels.map((ch) => {
+              const active = selectedChannels?.has(ch) ?? true;
+              return (
+                <button
+                  key={ch}
+                  type="button"
+                  onClick={() => toggleChannel(ch)}
+                  className="px-2.5 py-1 rounded-md text-[11px] transition-colors"
+                  style={{
+                    fontFamily: 'var(--mono)',
+                    backgroundColor: active ? 'var(--surface-alt)' : 'transparent',
+                    border: `1px solid ${active ? 'var(--border-light)' : 'var(--border)'}`,
+                    color: active ? 'var(--text)' : 'var(--text-muted)',
+                  }}
+                >
+                  {ch}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {monthlyLoading && (
           <div className="text-sm py-12 text-center" style={{ color: 'var(--text-muted)' }}>
             Carregando...
           </div>
         )}
-        {!monthlyLoading && monthly && monthly.length > 0 && (
+        {!monthlyLoading && monthlyAggregated.length > 0 && (
           <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={monthly} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+            <LineChart data={monthlyAggregated} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
               <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
               <XAxis
                 dataKey="date"
@@ -135,7 +229,7 @@ export default function Trafego() {
             </LineChart>
           </ResponsiveContainer>
         )}
-        {!monthlyLoading && (!monthly || monthly.length === 0) && (
+        {!monthlyLoading && monthlyAggregated.length === 0 && (
           <div className="text-sm py-12 text-center" style={{ color: 'var(--text-muted)' }}>
             Sem dados de sessões ainda.
           </div>

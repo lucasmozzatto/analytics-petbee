@@ -201,6 +201,7 @@ export interface TrafegoResponse {
 export interface TrafegoMonthlyPoint {
   // YYYY-MM
   date: string;
+  channel: string;
   sessions: number;
 }
 

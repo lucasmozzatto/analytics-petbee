@@ -921,12 +921,14 @@ export async function queryBlogTopPages(
 export interface TrafegoMonthlyPoint {
   // YYYY-MM
   date: string;
+  channel: string;
   sessions: number;
 }
 
 /**
- * Total sessions per month over a long horizon.
+ * Total sessions per month and channel over a long horizon.
  * Independent of the page's TimeWindowPicker — used for the historical growth chart.
+ * Frontend aggregates selected channels client-side.
  */
 export async function queryTrafegoMonthly(
   db: D1Database,
@@ -937,10 +939,11 @@ export async function queryTrafegoMonthly(
     .prepare(
       `SELECT
         substr(date_ref, 1, 7) AS date,
+        channel_group AS channel,
         SUM(sessions) AS sessions
       FROM ga4_sessions
       WHERE date_ref >= ? AND date_ref <= ?
-      GROUP BY substr(date_ref, 1, 7)
+      GROUP BY substr(date_ref, 1, 7), channel_group
       ORDER BY date ASC`
     )
     .bind(startDate, endDate)
@@ -948,6 +951,7 @@ export async function queryTrafegoMonthly(
 
   return (result.results as Record<string, unknown>[]).map((row) => ({
     date: row.date as string,
+    channel: (row.channel as string) ?? '(unknown)',
     sessions: (row.sessions as number) ?? 0,
   }));
 }
