@@ -94,12 +94,15 @@ export default function Trafego() {
       .map(([date, sessions]) => ({ date, sessions }));
   }, [monthly, selectedChannels, channels]);
 
-  function toggleChannel(channel: string) {
+  // Click = solo (only this channel). Cmd/Ctrl+click = additive toggle.
+  function handleChannelClick(channel: string, additive: boolean) {
     setSelectedChannels((prev) => {
       const base = prev ?? new Set(channels);
+      if (!additive) {
+        return new Set([channel]);
+      }
       const next = new Set(base);
       if (next.has(channel)) {
-        // Don't allow zero selection — chart would be empty.
         if (next.size === 1) return next;
         next.delete(channel);
       } else {
@@ -163,7 +166,8 @@ export default function Trafego() {
                 <button
                   key={ch}
                   type="button"
-                  onClick={() => toggleChannel(ch)}
+                  onClick={(e) => handleChannelClick(ch, e.metaKey || e.ctrlKey)}
+                  title="Clique para isolar · Cmd/Ctrl+clique para somar"
                   className="px-2.5 py-1 rounded-md text-[11px] transition-colors"
                   style={{
                     fontFamily: 'var(--mono)',
