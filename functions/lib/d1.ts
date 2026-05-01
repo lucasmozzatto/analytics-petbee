@@ -916,6 +916,42 @@ export async function queryBlogTopPages(
   }));
 }
 
+// ── Trafego Helpers ──
+
+export interface TrafegoMonthlyPoint {
+  // YYYY-MM
+  date: string;
+  sessions: number;
+}
+
+/**
+ * Total sessions per month over a long horizon.
+ * Independent of the page's TimeWindowPicker — used for the historical growth chart.
+ */
+export async function queryTrafegoMonthly(
+  db: D1Database,
+  startDate: string,
+  endDate: string,
+): Promise<TrafegoMonthlyPoint[]> {
+  const result = await db
+    .prepare(
+      `SELECT
+        substr(date_ref, 1, 7) AS date,
+        SUM(sessions) AS sessions
+      FROM ga4_sessions
+      WHERE date_ref >= ? AND date_ref <= ?
+      GROUP BY substr(date_ref, 1, 7)
+      ORDER BY date ASC`
+    )
+    .bind(startDate, endDate)
+    .all();
+
+  return (result.results as Record<string, unknown>[]).map((row) => ({
+    date: row.date as string,
+    sessions: (row.sessions as number) ?? 0,
+  }));
+}
+
 // ── Insight Helpers ──
 
 export interface InsightSummary {

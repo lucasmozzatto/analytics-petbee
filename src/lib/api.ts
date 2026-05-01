@@ -1,6 +1,7 @@
 import type {
   VisaoGeralResponse,
   TrafegoResponse,
+  TrafegoMonthlyPoint,
   UTMRow,
   UTMDimension,
   FunnelData,
@@ -80,6 +81,20 @@ export function getTrafego(
 ): Promise<TrafegoResponse> {
   return fetchAPI<TrafegoResponse>(
     `/api/metrics/trafego?${dateParams(startDate, endDate, compare)}`
+  );
+}
+
+/**
+ * GET /api/metrics/trafego/monthly
+ * Monthly buckets of total sessions over a long horizon, independent of the page's time window picker.
+ */
+export function getTrafegoMonthly(
+  startDate: string,
+  endDate: string
+): Promise<TrafegoMonthlyPoint[]> {
+  const params = new URLSearchParams({ startDate, endDate });
+  return fetchAPI<TrafegoMonthlyPoint[]>(
+    `/api/metrics/trafego/monthly?${params.toString()}`,
   );
 }
 

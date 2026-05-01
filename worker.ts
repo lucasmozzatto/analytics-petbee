@@ -47,6 +47,7 @@ import {
   queryPages,
   queryBlogTimeseries,
   queryBlogTopPages,
+  queryTrafegoMonthly,
   queryInsightHistory,
   queryInsight,
   saveInsight,
@@ -211,6 +212,20 @@ export default {
         }
 
         return jsonResponse(result);
+      }
+
+      // ────────────────────────────────────────────────
+      // GET /api/metrics/trafego/monthly
+      // ────────────────────────────────────────────────
+      // Long-horizon monthly view independent of the page's TimeWindowPicker.
+      if (pathname === "/api/metrics/trafego/monthly" && method === "GET") {
+        const { startDate, endDate } = getDateParams(url);
+        const timeseries = await queryTrafegoMonthly(
+          env.DB,
+          startDate,
+          endDate,
+        );
+        return jsonResponse(timeseries);
       }
 
       // ────────────────────────────────────────────────

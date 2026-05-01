@@ -198,6 +198,12 @@ export interface TrafegoResponse {
   previous?: { byChannel: ChannelRow[] };
 }
 
+export interface TrafegoMonthlyPoint {
+  // YYYY-MM
+  date: string;
+  sessions: number;
+}
+
 /* ===== Funnel Page Config ===== */
 
 export interface FunnelPageConfig {
